@@ -172,12 +172,14 @@ def get_test_data(data):
     elif data == "cifar10":
         _, (X_test, y_test) = tf.keras.datasets.cifar10.load_data()
         X_test = X_test.reshape(-1, 32, 32, 3) / 255.0
-        return X_test, y_test.reshape((-1)), 10
+        y_test = tf.keras.utils.to_categorical(y_test.reshape((-1)), 10)
+        return X_test, y_test, 10
 
     elif data == "cifar100":
         _, (X_test, y_test) = tf.keras.datasets.cifar100.load_data()
         X_test = X_test.reshape(-1, 32, 32, 3) / 255.0
-        return X_test, y_test.reshape((-1)), 100
+        y_test = tf.keras.utils.to_categorical(y_test.reshape((-1)), 100)
+        return X_test, y_test, 100
 
     elif data == "imagenette":
         dir = '../datasets/imagenette'

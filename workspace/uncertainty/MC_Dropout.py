@@ -3,7 +3,7 @@
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import tqdm
-from uncertainty.metrics_classification import reliability_diagram, mutual_information
+from uncertainty.metrics_classification import reliability_diagram, uncertainty_diagram
 import re
 import tensorflow_probability as tfp
 tfd = tfp.distributions
@@ -23,90 +23,99 @@ class SamplingBasedEstimator:
         m = tf.keras.metrics.CategoricalAccuracy()
         for y_p in self.predictions:
             m.reset_state()
-            m.update_state(tf.keras.utils.to_categorical(lbls, self.num_classes), y_p)
+            m.update_state(lbls, y_p)
             accs.append(m.result())
         return (sum(accs)/len(accs)).numpy()
 
     def get_ensemble_accuracy(self, lbls):
         mc_ensemble_pred = tf.argmax(self.p_ens, axis=-1)
         en_acc = tf.keras.metrics.Accuracy()
-        en_acc.update_state(lbls, mc_ensemble_pred)
+        en_acc.update_state(tf.argmax(lbls, axis=-1), mc_ensemble_pred)
         return en_acc.result().numpy()
 
-    # select uncertain images by the standard deviation of the class predictions
-    def get_certainties_by_stddev(self):
-        stddevs = tf.math.sqrt(tf.math.reduce_mean(tf.math.reduce_variance(self.predictions, axis=0), axis=-1)).numpy()
-        max_var = ((1/self.num_classes)**2*(self.num_classes-1) +
-                   ((self.num_classes-1)/self.num_classes)**2)/(self.num_classes+1)
-        max_stddevs = tf.math.sqrt(max_var).numpy()
-        uncertainty = stddevs/max_stddevs
-        return 1-uncertainty
+    def get_ensemble_prediction(self):
+        return tf.argmax(self.p_ens, axis=-1).numpy()
 
-    def get_certainties_by_SE(self):
-        H = tfd.Categorical(probs=self.p_ens).entropy()
-        H = H / -tf.math.log(1/self.num_classes)
-        return 1-H.numpy()
+    def uncertainties_shannon_entropy(self):
+        return tfd.Categorical(probs=self.p_ens).entropy().numpy()
 
-    def get_certainties_by_mutual_inf(self):
-        mi = mutual_information(self.predictions)
+    def uncertainties_mutual_information(self):
+        h = tfd.Categorical(probs=self.p_ens).entropy()
+        mi = 0
+        for prediction in self.predictions:
+            mi = mi - tfd.Categorical(probs=prediction).entropy()
+        mi = mi / len(self.predictions) + h
+        return mi
+
+    def bounded_certainties_shannon_entropy(self):
+        h = tfd.Categorical(probs=self.p_ens).entropy()
+        h = h / -tf.math.log(1/self.num_classes)
+        return 1-h.numpy()
+
+    def bounded_certainties_mutual_information(self):
+        mi = self.uncertainties_mutual_information()
         mi = mi / -tf.math.log(1/self.num_classes)
         return 1-mi.numpy()
-
-    def get_ensemble_prediction(self):
-        mc_ensemble_pred = tf.argmax(self.p_ens, axis=1)
-        return mc_ensemble_pred.numpy()
 
     def certainty_scores(self, lbls):
         pred_y = tf.math.argmax(self.p_ens, axis=-1)
         correct = (pred_y == lbls)
 
         scores = []
-        for certainties in (self.get_certainties_by_SE(), self.get_certainties_by_mutual_inf()):
+        for uncertainties in (self.uncertainties_shannon_entropy(), self.uncertainties_mutual_information()):
             pred_true, pred_false = [], []
-            for i in range(len(certainties)):
-                pred_true.append(certainties[i]) if correct[i] else pred_false.append(certainties[i])
-            score = len(pred_false)*tf.math.reduce_sum(pred_true)/(len(pred_true)*tf.math.reduce_sum(pred_false))
+            for i in range(len(uncertainties)):
+                pred_true.append(uncertainties[i]) if correct[i] else pred_false.append(uncertainties[i])
+            score = len(pred_true)*tf.math.reduce_sum(pred_false)/(len(pred_false)*tf.math.reduce_sum(pred_true))
             scores.append(score.numpy())
-
         return scores
 
     def plot_diagrams(self, lbls):
         pred_y = tf.math.argmax(self.p_ens, axis=-1)
         correct = (pred_y == lbls)
-        plt.figure(figsize=(12, 8))
-        cert_se = self.get_certainties_by_SE()
-        cert_stddev = self.get_certainties_by_mutual_inf()
+        plt.figure(figsize=(16, 10))
+        cert_se = self.bounded_certainties_shannon_entropy()
+        cert_mi = self.bounded_certainties_mutual_information()
 
-        # reliability diagrams
-        plt.subplot(2, 2, 1)
+        # calibration diagrams
+        plt.subplot(2, 3, 1)
         reliability_diagram(lbls, self.p_ens, cert_se, method="Shannon Entropy")
-        plt.subplot(2, 2, 2)
-        reliability_diagram(lbls, self.p_ens, cert_stddev, method="Mutual Information")
+        reliability_diagram(lbls, self.p_ens, cert_mi, method="Mutual Information")
 
-        pred_true_u1, pred_false_u1, pred_true_u2, pred_false_u2 = [], [], [], []
+        pred_true_se, pred_false_se, pred_true_mi, pred_false_mi = [], [], [], []
+        uncert_se = self.uncertainties_shannon_entropy()
+        uncert_mi = self.uncertainties_mutual_information()
         for i in range(len(correct)):
             if correct[i]:
-                pred_true_u1.append(cert_se[i])
-                pred_true_u2.append(cert_stddev[i])
+                pred_true_se.append(uncert_se[i])
+                pred_true_mi.append(uncert_mi[i])
             else:
-                pred_false_u1.append(cert_se[i])
-                pred_false_u2.append(cert_stddev[i])
+                pred_false_se.append(uncert_se[i])
+                pred_false_mi.append(uncert_mi[i])
 
-        plt.subplot(2, 2, 3)
-        plt.boxplot([pred_true_u1, pred_false_u1, pred_true_u2, pred_false_u2], showfliers=False)
-        plt.ylim(-0.05, 1.05)
-        plt.xticks([1.0, 2.0, 3.0, 4.0], ["correct SE", "incorrect SE", "correct MI", "incorrect MI"])
+        plt.subplot(2, 3, 2)
+        plt.boxplot([pred_true_se, pred_false_se], showfliers=False)
+        plt.xticks([1.0, 2.0], ["correct SE", "incorrect SE"])
         plt.xlabel("Predictions")
-        plt.ylabel("Certainty")
+        plt.ylabel("Uncertainty")
 
-        plt.subplot(2, 2, 4)
-        plt.scatter(pred_true_u1, pred_true_u2, c="limegreen", s=10, label="true predictions")
-        plt.scatter(pred_false_u1, pred_false_u2, c="firebrick", s=10, label="wrong predictions")
-        plt.xlabel("SE Certainty")
-        plt.ylabel("MI Certainty")
-        plt.ylim(-0.05, 1.05)
-        plt.xlim(-0.05, 1.05)
-        plt.legend(loc="lower left")
+        plt.subplot(2, 3, 3)
+        plt.boxplot([pred_true_mi, pred_false_mi], showfliers=False)
+        plt.xticks([1.0, 2.0], ["correct MI", "incorrect MI"])
+        plt.xlabel("Predictions")
+        plt.ylabel("Uncertainty")
+
+        plt.subplot(2, 3, 4)
+        plt.scatter(pred_true_se, pred_true_mi, c="limegreen", s=10, label="true predictions")
+        plt.scatter(pred_false_se, pred_false_mi, c="firebrick", s=10, label="wrong predictions")
+        plt.xlabel("SE Uncertainty")
+        plt.ylabel("MI Uncertainty")
+        plt.legend(loc="upper left")
+
+        plt.subplot(2, 3, 5)
+        uncertainty_diagram(lbls, self.p_ens, uncert_se, method="Shannon Entropy")
+        plt.subplot(2, 3, 6)
+        uncertainty_diagram(lbls, self.p_ens, uncert_mi, method="Mutual Information")
 
         plt.suptitle(self.estimator_name, fontsize=14)
         plt.show()

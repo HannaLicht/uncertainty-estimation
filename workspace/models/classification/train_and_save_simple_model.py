@@ -20,6 +20,7 @@ checkpoint_path = "simple_seq_model_mnist/cp.ckpt"
 # Create a callback that saves the model's weights
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_weights_only=True,
+                                                 save_best_only=True,
                                                  verbose=1)
 
 # Train the model with the new callback

@@ -35,12 +35,6 @@ class NeighborhoodUncertaintyClassifier:
     def build_uncertainty_model(self):
         inp = tf.keras.Input((2*self.k + 1))
         x = tf.keras.layers.Dense(512, activation='relu')(inp)
-        #aggregate = []
-        #for i in range(self.k):
-         #   batched_input = tf.concat([tf.reshape(inp[:, i], (-1, 1)), tf.reshape(inp[:, i], (-1, 1)),
-          #                             tf.reshape(inp[:, i], (-1, 1))], axis=-1)
-           # aggregate.append(layer(batched_input))
-        #x = tf.math.reduce_sum(aggregate, axis=0)
         x = tf.keras.layers.Dense(256, activation='relu')(x)
         out = tf.keras.layers.Dense(1, activation="sigmoid")(x)
 
@@ -104,16 +98,13 @@ class NeighborhoodUncertaintyClassifier:
         xtest_uncertainty, ytest_uncertainty = self.__get_data_for_uncertainty_model(train=False)
 
         early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=20, restore_best_weights=True)
-        if path_uncertainty_model is None:
-            path_uncertainty_model = "../models/classification/uncertainty_model/some_model/cp.ckpt"
-        cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=path_uncertainty_model,
-                                                         save_weights_only=True,
-                                                         verbose=1)
         rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
         self.uncertainty_model.fit(xtrain_uncertainty, ytrain_uncertainty,
                                    validation_data=(xtest_uncertainty, ytest_uncertainty),
-                                   callbacks=[early_stop, cp_callback, rlrop],
+                                   callbacks=[early_stop, rlrop],
                                    epochs=1000)
+        if path_uncertainty_model is not None:
+            self.uncertainty_model.save_weights(path_uncertainty_model)
 
         # test if weights of best val_loss are saved --> yes :)
         self.build_uncertainty_model()

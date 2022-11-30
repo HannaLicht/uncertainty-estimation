@@ -1,8 +1,6 @@
 import random
 import json
 import sys
-sys.path.append("/home/urz/hlichten")
-print(sys.path)
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
@@ -12,13 +10,13 @@ from uncertainty.Ensemble import BaggingEns, DataAugmentationEns
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 import tensorflow_probability as tfp
 tfd = tfp.distributions
+sys.path.append("/home/urz/hlichten")
+print(sys.path)
 
 STARTDATA = 1000
 NUM_IMAGES = 1000
 RUNS = 1
-#PATH_TO_PRETRAINED_RESNET_10 = "../models/classification/simple_seq_model_fashion_mnist/cp.ckpt"
 PATH_TO_PRETRAINED_RESNET_10 = "models/classification/ResNet_cifar10_" + str(STARTDATA) + "/cp.ckpt"
-#PATH_TO_PRETRAINED_RESNET_100 = "../models/classification/simple_seq_model_mnist/cp.ckpt"
 PATH_TO_PRETRAINED_RESNET_100 = "models/classification/ResNet_cifar100/cp.ckpt"
 
 
@@ -60,6 +58,7 @@ def train_base_model(checkpoint_path_old, checkpoint_path_new, X_train, y_train,
     # Create a callback that saves the model's weights
     cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path_new,
                                                      save_weights_only=True,
+                                                     save_best_only=True,
                                                      verbose=1)
     model.fit(X_train, y_train, validation_data=(X_test, y_test),
               callbacks=[early_stop, cp_callback, rlrop], verbose=1, epochs=1000)
@@ -67,7 +66,6 @@ def train_base_model(checkpoint_path_old, checkpoint_path_new, X_train, y_train,
 
 def prepare_model(path=PATH_TO_PRETRAINED_RESNET_10):
     model = ResNet(classes=10)
-    # model = create_simple_model()
     model.load_weights(path)
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     return model
@@ -83,24 +81,7 @@ class RetrainingEvaluator:
     def retrain(self, model, num_data, cert):
         self.X_train, self.y_train = list(self.X_train), list(self.y_train)
         index = sorted(range(len(cert)), key=cert.__getitem__, reverse=False)
-        '''
-        if c2 is not None:
-            index2 = sorted(range(len(cert)), key=cert.__getitem__, reverse=False)
-            i, used_indices = 0, []
-            while len(used_indices) < num_data:
-                if index[i] not in used_indices:
-                    self.xtrain.append(self.X_left[index[i]])
-                    self.ytrain.append(self.y_left[index[i]])
-                    used_indices.append(index[i])
-                    if len(used_indices) == num_data:
-                        break
-                if index2[i] not in used_indices:
-                    self.xtrain.append(self.X_left[index2[i]])
-                    self.ytrain.append(self.y_left[index2[i]])
-                    used_indices.append(index2[i])
-                i += 1
-        else:
-        '''
+
         for i in range(num_data):
             self.X_train.append(self.X_left[index[i]])
             self.y_train.append(self.y_left[index[i]])
@@ -133,13 +114,13 @@ def retrain_with_ensemble(ensemble, metric):
                                              X_test=retrainer.X_test, y_test=retrainer.y_test)
 
             if metric == "SE":
-                certainties = uncertainty_estimator.get_certainties_by_SE()
+                certainties = uncertainty_estimator.bounded_certainties_shannon_entropy()
                 acc, model = retrainer.retrain(model, NUM_IMAGES, certainties)
                 data[str(STARTDATA)][str(STARTDATA + (i+1)*NUM_IMAGES)]["Ensembles"][ensemble.__name__]["SE"] = \
                     data[str(STARTDATA)][str(STARTDATA+(i+1)*NUM_IMAGES)]["Ensembles"][ensemble.__name__]["SE"] + [acc]
 
             if metric == "MI":
-                certainties = uncertainty_estimator.get_certainties_by_mutual_inf()
+                certainties = uncertainty_estimator.bounded_certainties_mutual_information()
                 acc, model = retrainer.retrain(model, NUM_IMAGES, certainties)
                 data[str(STARTDATA)][str(STARTDATA + (i+1) * NUM_IMAGES)]["Ensembles"][ensemble.__name__]["MI"] = \
                     data[str(STARTDATA)][str(STARTDATA+(i+1)*NUM_IMAGES)]["Ensembles"][ensemble.__name__]["MI"] + [acc]
@@ -161,13 +142,13 @@ def retrain_with_MCdrop(metric):
             uncertainty_estimator = MCDropoutEstimator(clone_model, retrainer.X_left, 10, 50)
 
             if metric == "SE":
-                certainties = uncertainty_estimator.get_certainties_by_SE()
+                certainties = uncertainty_estimator.bounded_certainties_shannon_entropy()
                 acc, model = retrainer.retrain(model, NUM_IMAGES, certainties)
                 data[str(STARTDATA)][str(STARTDATA + (i + 1) * NUM_IMAGES)]["MC_drop"]["SE"] = \
                     data[str(STARTDATA)][str(STARTDATA + (i + 1) * NUM_IMAGES)]["MC_drop"]["SE"] + [acc]
 
             if metric == "MI":
-                certainties = uncertainty_estimator.get_certainties_by_mutual_inf()
+                certainties = uncertainty_estimator.bounded_certainties_mutual_information()
                 acc, model = retrainer.retrain(model, NUM_IMAGES, certainties)
                 data[str(STARTDATA)][str(STARTDATA + (i + 1) * NUM_IMAGES)]["MC_drop"]["MI"] = \
                     data[str(STARTDATA)][str(STARTDATA + (i + 1) * NUM_IMAGES)]["MC_drop"]["MI"] + [acc]
@@ -236,20 +217,19 @@ prepare_model().evaluate(xtest, tf.keras.utils.to_categorical(ytest.reshape((-1)
 # check whether the classes are balanced in train dataset
 print([list(ytrain).count(i) for i in range(10)])
 
-#retrain_with_nuc()
+retrain_with_nuc()
 #retrain_with_softmax_entropy()
 #retrain_with_random_data()
 #retrain_with_MCdrop("SE")
 #retrain_with_MCdrop("MI")
 retrain_with_ensemble(BaggingEns, "SE")
-#retrain_with_ensemble(BaggingEns, "MI")
-#retrain_with_ensemble(DataAugmentationEns, "SE")
-#retrain_with_ensemble(DataAugmentationEns, "MI")
+retrain_with_ensemble(BaggingEns, "MI")
+retrain_with_ensemble(DataAugmentationEns, "SE")
+retrain_with_ensemble(DataAugmentationEns, "MI")
 
 with open('results_retrain.json') as json_file:
     data = json.load(json_file)
     data = data[str(STARTDATA)]
-    #data = data["simple_seq_model"]
 
 numbers = [STARTDATA + i*NUM_IMAGES for i in range(times_images_added+1)]
 rand = [mean(data[str(imgs)]["random"]) for imgs in numbers]
@@ -258,28 +238,28 @@ mc_se = [mean(data[str(imgs)]["MC_drop"]["SE"]) for imgs in numbers]
 mc_mi = [mean(data[str(imgs)]["MC_drop"]["MI"]) for imgs in numbers]
 bag_se = [mean(data[str(imgs)]["Ensembles"]["BaggingEns"]["SE"]) for imgs in numbers]
 bag_mi = [mean(data[str(imgs)]["Ensembles"]["BaggingEns"]["MI"]) for imgs in numbers]
-#aug_se = [mean(data[str(imgs)]["Ensembles"]["DataAugmentationEns"]["SE"]) for imgs in numbers]
-#aug_mi = [mean(data[str(imgs)]["Ensembles"]["DataAugmentationEns"]["MI"]) for imgs in numbers]
+aug_se = [mean(data[str(imgs)]["Ensembles"]["DataAugmentationEns"]["SE"]) for imgs in numbers]
+aug_mi = [mean(data[str(imgs)]["Ensembles"]["DataAugmentationEns"]["MI"]) for imgs in numbers]
 nuc = [mean(data[str(imgs)]["NUC"]) for imgs in numbers]
 
 
 methods_to_show = [rand,
                    softmax,
-                   #mc_se,
-                   #mc_mi,
-                   #bag_se,
-                   #bag_mi,
-                   #aug_se,
-                   #aug_mi,
+                   mc_se,
+                   mc_mi,
+                   bag_se,
+                   bag_mi,
+                   aug_se,
+                   aug_mi,
                    nuc]
 labels = ["random",
           "softmax entropy",
-          #"MCdr SE",
-          #"MCdr MI",
-          #"bag SE",
-          #"bag MI",
-          #"aug SE"
-          #"aug MI",
+          "MCdr SE",
+          "MCdr MI",
+          "bag SE",
+          "bag MI",
+          "aug SE",
+          "aug MI",
           "NUC"]
 
 plt.figure(figsize=(14, 10))

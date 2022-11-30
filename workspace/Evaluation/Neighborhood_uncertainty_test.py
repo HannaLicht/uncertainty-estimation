@@ -1,15 +1,13 @@
-import matplotlib.pyplot as plt
-
-from functions import create_simple_model, ResNet, get_train_and_test_data
+from functions import ResNet, get_train_and_test_data
 import tensorflow as tf
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 
-numdata = 1000
-data = "cifar10"
-checkpoint_path = "../models/classification/ResNet_cifar10_" + str(numdata) + "/cp.ckpt"
-path_uncertainty_model = "../models/classification/uncertainty_model/" + data + "_" + str(numdata) + "/cp.ckpt"
+model_name = "ResNet_cifar100"
+data = "cifar100"
+checkpoint_path = "../models/classification/" + model_name + "/cp.ckpt"
+path_uncertainty_model = "../models/classification/uncertainty_model/" + data + "/cp.ckpt"
 
-model = ResNet(classes=10)
+model = ResNet(classes=100 if model_name == "ResNet_cifar100" else 10)
 model.load_weights(checkpoint_path)
 xtrain, ytrain, xtest, ytest, _ = get_train_and_test_data(data)
 
@@ -21,7 +19,7 @@ model.evaluate(xtest, ytest)
 ytrain = tf.argmax(ytrain, axis=-1).numpy()
 ytest = tf.argmax(ytest, axis=-1).numpy()
 
-estimator = NeighborhoodUncertaintyClassifier(model, xtrain[:numdata], ytrain[:numdata], xtest, ytest,
+estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xtest, ytest,
                                               path_uncertainty_model=path_uncertainty_model)
 
 certainties = estimator.certainties

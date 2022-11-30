@@ -33,6 +33,7 @@ rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5
 # Create a callback that saves the model's weights
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_weights_only=True,
+                                                 save_best_only=True,
                                                  verbose=1)
 model.fit(xtrain, ytrain, validation_data=(xtest, ytest),
           callbacks=[early_stop, cp_callback, rlrop], verbose=1, epochs=10)

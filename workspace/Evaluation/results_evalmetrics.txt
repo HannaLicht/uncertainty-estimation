@@ -1,4 +1,4 @@
-ResNet trained on 1000 data of cifar10:
+CNN trained on 1000 data of cifar10:
 
                         | AUROC | AUPR
 Softmax                 | 0.707 | 0.718
@@ -8,46 +8,46 @@ Bagging SE              | 0.719 | 0.742
 Bagging MI              | 0.655 | 0.688
 Data Augmentation SE    | 0.731 | 0.786
 Data Augmentation MI    | 0.666 | 0.728
-Neighborhood Uncert     | 0.570 | 0.571
+Neighborhood Uncert     | 0.535 | 0.538
 
 
-ResNet trained on 10000 data of cifar10:
+CNN trained on 10000 data of cifar10:
 
                         | AUROC | AUPR
 Softmax                 | 0.785 | 0.886
-MC Dropout SE           | 0.775 | 0.880
-MC Dropout MI           | 0.729 | 0.855
+MC Dropout SE           | 0.777 | 0.882
+MC Dropout MI           | 0.732 | 0.858
 Bagging SE              | 0.780 | 0.883
-Bagging MI              | 0.732 | 0.855
+Bagging MI              | 0.732 | 0.857
 Data Augmentation SE    | 0.785 | 0.900
-Data Augmentation MI    | 0.725 | 0.864
-Neighborhood Uncert     | 0.712 | 0.830
+Data Augmentation MI    | 0.726 | 0.869
+Neighborhood Uncert     | 0.712 | 0.833
 
 
-ResNet trained on whole cifar10:
+CNN trained on whole cifar10:
 
                         | AUROC | AUPR
 Softmax                 | 0.841 | 0.946
-MC Dropout SE           | 0.828 | 0.944
-MC Dropout MI           | 0.784 | 0.928
+MC Dropout SE           | 0.829 | 0.943
+MC Dropout MI           | 0.787 | 0.927
 Bagging SE              | 0.827 | 0.941
-Bagging MI              | 0.788 | 0.926
+Bagging MI              | 0.790 | 0.928
 Data Augmentation SE    | 0.825 | 0.943
-Data Augmentation MI    | 0.770 | 0.916
-Neighborhood Uncert     | 0.842 | 0.944
+Data Augmentation MI    | 0.776 | 0.925
+Neighborhood Uncert     | 0.841 | 0.943
 
 
-ResNet trained on cifar100:
+CNN trained on cifar100:
 
                         | AUROC | AUPR
 Softmax                 | 0.772 | 0.727
-MC Dropout SE           | 0.753 | 0.712
-MC Dropout MI           | 0.653 | 0.613
+MC Dropout SE           | 0.756 | 0.714
+MC Dropout MI           | 0.656 | 0.616
 Bagging SE              | 0.775 | 0.765
-Bagging MI              | 0.704 | 0.703
+Bagging MI              | 0.705 | 0.706
 Data Augmentation SE    | 0.777 | 0.769
-Data Augmentation MI    | 0.679 | 0.677
-Neighborhood Uncert     | 0.793 | 0.753
+Data Augmentation MI    | 0.680 | 0.684
+Neighborhood Uncert     | 0.790 | 0.751
 
 
 EfficientNetB0 trained on Imagenet:

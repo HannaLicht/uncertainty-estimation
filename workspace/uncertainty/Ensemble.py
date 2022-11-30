@@ -58,59 +58,14 @@ class Ensemble(SamplingBasedEstimator):
         # train ensemble members
         for index, (model, imgs, lbls) in enumerate(zip(self.members, train_imgs, train_lbls)):
             model.fit(imgs, lbls, validation_data=(X_test, y_test), epochs=1000, batch_size=128, callbacks=[early_stop, rlrop])
-            if path_to_ensemble is None:
-                model.save(ENSEMBLE_LOCATION + "/" + self.estimator_name + "/member_" + str(index))
-            else:
+            if path_to_ensemble is not None:
                 model.save(path_to_ensemble + "/member_" + str(index))
 
         self.predict()
-    '''
-    def train_on(self, xtrain, ytrain, X, xtest, ytest, path_to_save):
-        train_imgs, train_lbls = self.prepare_data(xtrain, ytrain, len(self.members))
-        self.X = X
-
-        rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
-        early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=15, restore_best_weights=True)
-
-        for index, (model, imgs, lbls) in enumerate(zip(self.members, train_imgs, train_lbls)):
-            model.fit(imgs, lbls, validation_data=(xtest, ytest), epochs=1000, batch_size=128, callbacks=[early_stop, rlrop])
-            model.save(path_to_save + "/member_" + str(index))
-
-        self.__predict()
-    '''
 
     def predict(self):
         self.predictions = [model.predict(self.X, batch_size=32) for model in self.members]
         self.p_ens = tf.math.reduce_mean(self.predictions, axis=0)
-
-
-
-'''
-class PartitionEns(Ensemble):
-
-    def __init__(self, X_train, y_train, X, y, num_classes, model_name=None, path_to_ensemble=None,
-                 X_test=None, y_test=None, num_members=5):
-        self.estimator_name = "Ensemble - Partition of Dataset"
-        super().__init__(X_train, y_train, X, y, num_classes, model_name, path_to_ensemble, X_test, y_test, num_members)
-
-    def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_test, y_test, model_name, num_members):
-        # part train dataset in num_members disjunctive subsets
-        datasets_size = len(X_train) // num_members
-        train_imgs = [X_train[i:i + datasets_size] for i in range(0, len(X_train), datasets_size)]
-        train_lbls = [y_train[i:i + datasets_size] for i in range(0, len(y_train), datasets_size)]
-
-        self.prepare_ensemble(model_name, num_members)
-        early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=20, restore_best_weights=True)
-
-        # train ensemble members
-        for index, (model, imgs, lbls) in enumerate(zip(self.members, train_imgs, train_lbls)):
-            model.fit(imgs, lbls, validation_data=(X_test, y_test), callbacks=[early_stop], epochs=100)
-            if path_to_ensemble is None:
-                model.save(ENSEMBLE_LOCATION + "/dataset_partition/" + model_name + "/member_" + str(index))
-            else:
-                model.save(path_to_ensemble + "/member_" + str(index))
-        self.predict()
-'''
 
 
 class BaggingEns(Ensemble):
@@ -125,8 +80,8 @@ class BaggingEns(Ensemble):
         train_imgs, train_lbls = [], []
         for i in range(num_members):
             rand = tf.random.uniform(shape=[len(xtrain)], minval=0, maxval=len(xtrain) - 1, dtype=tf.dtypes.int64)
-            train_imgs.append(tf.convert_to_tensor([xtrain[index] for index in rand]))
-            train_lbls.append(tf.convert_to_tensor([ytrain[index] for index in rand]))
+            train_imgs.append(tf.gather(xtrain, rand))
+            train_lbls.append(tf.gather(ytrain, rand))
 
         return train_imgs, train_lbls
 

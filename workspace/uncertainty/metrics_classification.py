@@ -8,7 +8,7 @@ tfd = tfp.distributions
 
 
 # Expected Calibration Error (ECE)
-def expected_calibration_error(y_true, y_pred, uncertainties=None, num_bins=15, two_returns=False):
+def expected_calibration_error(y_true, y_pred, certainties=None, num_bins=15, two_returns=False):
     """
     :param y_true: indexs of correct labels (not one-hot vectors)
     :param y_pred:
@@ -19,8 +19,8 @@ def expected_calibration_error(y_true, y_pred, uncertainties=None, num_bins=15, 
     """
     pred_y = np.argmax(y_pred, axis=-1).astype(np.float32)
     correct = (pred_y == y_true)
-    if uncertainties is not None:
-        prob_y = uncertainties
+    if certainties is not None:
+        prob_y = certainties
     else:
         prob_y = np.max(y_pred, axis=-1)
 
@@ -64,23 +64,31 @@ def static_calibration_error(y_true, y_pred, num_bins=15):
     return o / (y_pred.shape[0] * classes)
 
 
-def reliability_diagram(y_true, output, uncertainties=None, num_bins=15, method=""):
-    x, y = expected_calibration_error(y_true, output, uncertainties=uncertainties, num_bins=num_bins, two_returns=True)
-    print("trend to over/under confidence: ", tf.math.reduce_mean([a-b for a, b in zip(x, y)][1:]).numpy())
+def reliability_diagram(y_true, output, certainties=None, num_bins=15, method=""):
+    x, y = expected_calibration_error(y_true, output, certainties=certainties, num_bins=num_bins, two_returns=True)
     plt.plot([0, 1], [0, 1], "k:", label="Perfectly calibrated")
-    plt.plot(x, y, "s-", label="network")
+    plt.plot(x, y, "s-", label=method)
     plt.xlabel("Confidence")
     plt.ylabel("Accuracy")
     plt.legend(loc="upper left")
+    plt.title("Reliability Diagram")
+
+
+def uncertainty_diagram(y_true, y_pred, uncertainties, method=""):
+    y_pred = np.argmax(y_pred, axis=-1).astype(np.float32)
+    correct = (y_pred == y_true)
+
+    b = np.linspace(start=tf.reduce_min(uncertainties), stop=tf.reduce_max(uncertainties), num=10)
+    bins = np.digitize(uncertainties, bins=b, right=True)
+
+    x, y = [], []
+    for b in range(10):
+        mask = bins == b
+        if np.any(mask):
+            x.append(np.sum(uncertainties[mask]) / len(uncertainties[mask]))
+            y.append(np.sum(correct[mask]) / len(correct[mask]))
+    plt.plot(x, y, "s-")
+    plt.xlabel("Uncertainty")
+    plt.ylim((-0.05, 1.05))
+    plt.ylabel("Accuracy")
     plt.title(method)
-
-
-def mutual_information(pred_members):
-    H = tfd.Categorical(probs=tf.math.reduce_mean(pred_members, axis=0)).entropy()
-    MI = 0
-    for prediction in pred_members:
-        MI = MI-tfd.Categorical(probs=prediction).entropy()
-    MI = MI/len(pred_members) + H
-    return MI
-
-
