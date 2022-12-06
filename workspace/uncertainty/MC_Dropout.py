@@ -3,7 +3,7 @@
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import tqdm
-from uncertainty.metrics_classification import reliability_diagram, uncertainty_diagram
+from uncertainty.calibration_classification import reliability_diagram, uncertainty_diagram
 import re
 import tensorflow_probability as tfp
 tfd = tfp.distributions
@@ -133,8 +133,8 @@ class MCDropoutEstimator(SamplingBasedEstimator):
         self.model = self.make_MC_dropout(model, layer_regex=".*drop.*")
 
         # check, if all dropout layers are MC dropout layers (training=True -> activated during inference)
-        for layer in self.model.get_config().get("layers"):
-            print(layer)
+        #for layer in self.model.get_config().get("layers"):
+         #   print(layer)
 
         self.X, self.num_classes, self.predictions = X, num_classes, []
         X = [X[i:i + 1000] for i in range(0, len(X), 1000)]

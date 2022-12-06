@@ -1,13 +1,13 @@
-from functions import ResNet, get_train_and_test_data
+from functions import CNN, get_train_and_test_data
 import tensorflow as tf
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 
-model_name = "ResNet_cifar100"
+model_name = "CNN_cifar100"
 data = "cifar100"
 checkpoint_path = "../models/classification/" + model_name + "/cp.ckpt"
 path_uncertainty_model = "../models/classification/uncertainty_model/" + data + "/cp.ckpt"
 
-model = ResNet(classes=100 if model_name == "ResNet_cifar100" else 10)
+model = CNN(classes=100 if model_name == "CNN_cifar100" else 10)
 model.load_weights(checkpoint_path)
 xtrain, ytrain, xtest, ytest, _ = get_train_and_test_data(data)
 

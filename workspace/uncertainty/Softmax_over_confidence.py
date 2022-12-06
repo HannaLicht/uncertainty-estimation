@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-from metrics_classification import expected_calibration_error, static_calibration_error, reliability_diagram
+from calibration_classification import expected_calibration_error, static_calibration_error, reliability_diagram
 from functions import create_simple_model
 
 CHECKPOINT_PATH = "../models/classification/simple_seq_model_mnist/cp.ckpt"

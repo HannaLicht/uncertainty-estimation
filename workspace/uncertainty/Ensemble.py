@@ -2,11 +2,11 @@ import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from matplotlib import pyplot as plt
 from keras.preprocessing.image import ImageDataGenerator
-from functions import create_simple_model, ResNet
+from functions import create_simple_model, CNN
 from abc import abstractmethod
 from uncertainty.MC_Dropout import SamplingBasedEstimator
 
-ENSEMBLE_LOCATION = "../models/classification/ensembles"
+ENSEMBLE_LOCATION = "models/classification/ensembles"
 
 """
 Ensemble members have same model architecture but are trained on different data samples
@@ -42,13 +42,13 @@ class Ensemble(SamplingBasedEstimator):
 
         if model_name == "simple_seq_model":
             self.members = [create_simple_model() for _ in range(num_members)]
-        elif model_name == "ResNet_cifar10":
-            self.members = [ResNet(classes=10) for _ in range(num_members)]
+        elif model_name == "CNN_cifar10":
+            self.members = [CNN(classes=10) for _ in range(num_members)]
             for member in self.members:
-                member.load_weights("../models/classification/ResNet_cifar100/cp.ckpt")
+                member.load_weights("models/classification/CNN_cifar100/cp.ckpt")
                 member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
-        elif model_name == "ResNet_cifar100":
-            self.members = [ResNet(classes=100) for _ in range(num_members)]
+        elif model_name == "CNN_cifar100":
+            self.members = [CNN(classes=100) for _ in range(num_members)]
         else:
             raise NotImplementedError
 
@@ -86,6 +86,18 @@ class BaggingEns(Ensemble):
         return train_imgs, train_lbls
 
 
+class RandomInitShuffleEns(Ensemble):
+
+    def __init__(self, X_train, y_train, X, num_classes, model_name=None, path_to_ensemble=None, X_test=None,
+                 y_test=None, optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5):
+        self.estimator_name = "Ensemble - Random Initialization & Data Shuffle"
+        super().__init__(X_train, y_train, X, num_classes, model_name, path_to_ensemble, X_test, y_test,
+                         optimizer, loss, metrics, num_members)
+
+    def prepare_data(self, xtrain, ytrain, num_members):
+        return [xtrain for _ in range(num_members)], [ytrain for _ in range(num_members)]
+
+
 class DataAugmentationEns(Ensemble):
 
     def __init__(self, X_train, y_train, X, num_classes, model_name=None, path_to_ensemble=None, X_test=None,
@@ -100,13 +112,13 @@ class DataAugmentationEns(Ensemble):
 
         if model_name == "simple_seq_model":
             self.members = [create_simple_model() for _ in range(num_members)]
-        elif model_name == "ResNet_cifar10":
-            self.members = [ResNet(classes=10) for _ in range(num_members)]
+        elif model_name == "CNN_cifar10":
+            self.members = [CNN(classes=10) for _ in range(num_members)]
             for member in self.members:
-                member.load_weights("../models/classification/ResNet_cifar100/cp.ckpt")
+                member.load_weights("models/classification/CNN_cifar100/cp.ckpt")
                 member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
-        elif model_name == "ResNet_cifar100":
-            self.members = [ResNet(classes=100) for _ in range(num_members)]
+        elif model_name == "CNN_cifar100":
+            self.members = [CNN(classes=100) for _ in range(num_members)]
         else:
             raise NotImplementedError
 

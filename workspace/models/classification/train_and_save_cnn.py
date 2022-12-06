@@ -2,7 +2,7 @@
 
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from functions import ResNet, get_train_and_test_data
+from functions import CNN, get_train_and_test_data
 
 CONTINUE = False
 DATASET = "cifar100"
@@ -11,10 +11,10 @@ shape = (32, 32, 3)
 train_images, train_labels, test_images, test_labels, classes = get_train_and_test_data(DATASET)
 
 # Create a basic model instance
-model = ResNet(shape, classes)
+model = CNN(shape, classes)
 model.summary()
 
-checkpoint_path = "ResNet_" + DATASET + "/cp.ckpt"
+checkpoint_path = "CNN_" + DATASET + "/cp.ckpt"
 
 #early stopping to monitor the validation loss and avoid overfitting
 early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=10, restore_best_weights=True)
@@ -38,7 +38,7 @@ model.fit(train_images,
           callbacks=[cp_callback, early_stop, rlrop])  # Pass callback to training
 
 # Create a basic model instance
-model = ResNet(shape, classes)
+model = CNN(shape, classes)
 
 # Evaluate the model
 _, acc = model.evaluate(test_images, test_labels, verbose=2)

@@ -2,7 +2,7 @@ from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 import tqdm
 from matplotlib import pyplot as plt
 import tensorflow as tf
-from uncertainty.metrics_classification import reliability_diagram
+from uncertainty.calibration_classification import reliability_diagram
 
 
 class NeighborhoodUncertaintyClassifier:
@@ -49,19 +49,21 @@ class NeighborhoodUncertaintyClassifier:
         ypred = tf.reshape(tf.repeat(ypred, 10, axis=0), (-1, 10))
         spred = tf.math.reduce_max(out, axis=-1)
         r = self.model_without_last_layer.predict(img_batch, verbose=0)
-        r = tf.repeat(r, int(len(self.A) / 5), axis=0)
-        r = tf.reshape(r, (len(img_batch), int(len(self.A) / 5), -1))
+        r = tf.repeat(r, len(self.A), axis=0)
+        r = tf.reshape(r, (len(img_batch), len(self.A), -1))
+        #r = tf.repeat(r, int(len(self.A) / 5), axis=0)
+        #r = tf.reshape(r, (len(img_batch), int(len(self.A) / 5), -1))
 
-        distances = tf.reduce_sum(tf.abs(tf.subtract(self.A[:int(len(self.A) / 5)], r)), axis=-1)
-        distances = distances + tf.reduce_sum(tf.abs(tf.subtract(
-            self.A[int(len(self.A) / 5):int(2 * len(self.A) / 5)], r)), axis=-1)
-        distances = distances + tf.reduce_sum(tf.abs(tf.subtract(
-            self.A[int(2 * len(self.A) / 5):int(3 * len(self.A) / 5)], r)), axis=-1)
-        distances = distances + tf.reduce_sum(tf.abs(tf.subtract(
-            self.A[int(3 * len(self.A) / 5):int(4 * len(self.A) / 5)], r)), axis=-1)
-        distances = distances + tf.reduce_sum(tf.abs(tf.subtract(
-            self.A[int(4 * len(self.A) / 5):len(self.A)], r)), axis=-1)
-        # distances = tf.reduce_sum(tf.abs(tf.subtract(self.A[:len(self.A/5)], r)), axis=-1)
+        #distances = tf.reduce_sum(tf.abs(tf.subtract(self.A[:int(len(self.A) / 5)], r)), axis=-1)
+        #distances = distances + tf.reduce_sum(tf.abs(tf.subtract(
+         #   self.A[int(len(self.A) / 5):int(2 * len(self.A) / 5)], r)), axis=-1)
+        #distances = distances + tf.reduce_sum(tf.abs(tf.subtract(
+         #   self.A[int(2 * len(self.A) / 5):int(3 * len(self.A) / 5)], r)), axis=-1)
+        #distances = distances + tf.reduce_sum(tf.abs(tf.subtract(
+         #   self.A[int(3 * len(self.A) / 5):int(4 * len(self.A) / 5)], r)), axis=-1)
+        #distances = distances + tf.reduce_sum(tf.abs(tf.subtract(
+         #   self.A[int(4 * len(self.A) / 5):len(self.A)], r)), axis=-1)
+        distances = tf.reduce_sum(tf.abs(tf.subtract(self.A, r)), axis=-1)
         if train_data:
             # the smallest distance has the r itself -> get k+1 vectors and remove the best one
             top_k_distances, top_k_indices = tf.nn.top_k(tf.negative(distances), k=self.k + 1)
@@ -105,10 +107,6 @@ class NeighborhoodUncertaintyClassifier:
                                    epochs=1000)
         if path_uncertainty_model is not None:
             self.uncertainty_model.save_weights(path_uncertainty_model)
-
-        # test if weights of best val_loss are saved --> yes :)
-        self.build_uncertainty_model()
-        self.uncertainty_model.load_weights(path_uncertainty_model)
 
         loss, acc = self.uncertainty_model.evaluate(xtest_uncertainty, ytest_uncertainty, verbose=2)
         print("Uncertainty model, accuracy: {:5.2f}%".format(100 * acc))

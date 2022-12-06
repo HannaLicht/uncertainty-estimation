@@ -1,23 +1,24 @@
 import random
 import json
 import sys
-import matplotlib.pyplot as plt
-import tensorflow as tf
-from keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from functions import create_simple_model, get_train_and_test_data, ResNet
-from uncertainty.MC_Dropout import MCDropoutEstimator
-from uncertainty.Ensemble import BaggingEns, DataAugmentationEns
-from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
-import tensorflow_probability as tfp
-tfd = tfp.distributions
 sys.path.append("/home/urz/hlichten")
 print(sys.path)
 
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from functions import get_train_and_test_data, CNN
+from uncertainty.MC_Dropout import MCDropoutEstimator
+from uncertainty.Ensemble import BaggingEns, DataAugmentationEns, RandomInitShuffleEns
+from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
+import tensorflow_probability as tfp
+tfd = tfp.distributions
+
 STARTDATA = 1000
 NUM_IMAGES = 1000
-RUNS = 1
-PATH_TO_PRETRAINED_RESNET_10 = "models/classification/ResNet_cifar10_" + str(STARTDATA) + "/cp.ckpt"
-PATH_TO_PRETRAINED_RESNET_100 = "models/classification/ResNet_cifar100/cp.ckpt"
+RUNS = 3
+PATH_TO_PRETRAINED_CNN_10 = "models/classification/CNN_cifar10_" + str(STARTDATA) + "/cp.ckpt"
+PATH_TO_PRETRAINED_CNN_100 = "models/classification/CNN_cifar100/cp.ckpt"
 
 
 times_images_added = 9 if STARTDATA == 1000 else 5
@@ -30,7 +31,7 @@ xtrain, ytrain = xleft[:STARTDATA], yleft[:STARTDATA]
 xleft, yleft = xleft[STARTDATA:], yleft[STARTDATA:]
 
 # comment if model already trained on STARTDATA of cifar10 training data
-#train_base_model(PATH_TO_PRETRAINED_RESNET_100, PATH_TO_PRETRAINED_RESNET_10,
+#train_base_model(PATH_TO_PRETRAINED_CNN_100, PATH_TO_PRETRAINED_CNN_10,
  #                xtrain, tf.keras.utils.to_categorical(ytrain.reshape((-1)), 10),
   #               xtest, tf.keras.utils.to_categorical(ytest.reshape((-1)), 10))
 
@@ -46,7 +47,7 @@ def train_base_model(checkpoint_path_old, checkpoint_path_new, X_train, y_train,
                                 cifar10
     :return:
     """
-    model = ResNet(classes=10)
+    model = CNN(classes=10)
     model.load_weights(checkpoint_path_old)
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
@@ -64,8 +65,8 @@ def train_base_model(checkpoint_path_old, checkpoint_path_new, X_train, y_train,
               callbacks=[early_stop, cp_callback, rlrop], verbose=1, epochs=1000)
 
 
-def prepare_model(path=PATH_TO_PRETRAINED_RESNET_10):
-    model = ResNet(classes=10)
+def prepare_model(path=PATH_TO_PRETRAINED_CNN_10):
+    model = CNN(classes=10)
     model.load_weights(path)
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     return model
@@ -107,10 +108,11 @@ def retrain_with_ensemble(ensemble, metric):
 
         with open('results_retrain.json') as json_file:
             data = json.load(json_file)
+        print(data)
 
         for i in range(times_images_added):
             uncertainty_estimator = ensemble(retrainer.X_train, retrainer.y_train, retrainer.X_left, num_classes=10,
-                                             model_name="ResNet_cifar10",
+                                             model_name="CNN_cifar10",
                                              X_test=retrainer.X_test, y_test=retrainer.y_test)
 
             if metric == "SE":
@@ -135,6 +137,7 @@ def retrain_with_MCdrop(metric):
         retrainer = RetrainingEvaluator()
         with open('results_retrain.json') as json_file:
             data = json.load(json_file)
+        print(data)
 
         for i in range(times_images_added):
             clone_model = prepare_model()
@@ -217,15 +220,17 @@ prepare_model().evaluate(xtest, tf.keras.utils.to_categorical(ytest.reshape((-1)
 # check whether the classes are balanced in train dataset
 print([list(ytrain).count(i) for i in range(10)])
 
-retrain_with_nuc()
-#retrain_with_softmax_entropy()
-#retrain_with_random_data()
 #retrain_with_MCdrop("SE")
 #retrain_with_MCdrop("MI")
-retrain_with_ensemble(BaggingEns, "SE")
-retrain_with_ensemble(BaggingEns, "MI")
+#retrain_with_nuc()
+#retrain_with_softmax_entropy()
+#retrain_with_random_data()
+#retrain_with_ensemble(BaggingEns, "SE")
+#retrain_with_ensemble(BaggingEns, "MI")
 retrain_with_ensemble(DataAugmentationEns, "SE")
-retrain_with_ensemble(DataAugmentationEns, "MI")
+#retrain_with_ensemble(DataAugmentationEns, "MI")
+retrain_with_ensemble(RandomInitShuffleEns, "SE")
+retrain_with_ensemble(RandomInitShuffleEns, "MI")
 
 with open('results_retrain.json') as json_file:
     data = json.load(json_file)
@@ -240,6 +245,8 @@ bag_se = [mean(data[str(imgs)]["Ensembles"]["BaggingEns"]["SE"]) for imgs in num
 bag_mi = [mean(data[str(imgs)]["Ensembles"]["BaggingEns"]["MI"]) for imgs in numbers]
 aug_se = [mean(data[str(imgs)]["Ensembles"]["DataAugmentationEns"]["SE"]) for imgs in numbers]
 aug_mi = [mean(data[str(imgs)]["Ensembles"]["DataAugmentationEns"]["MI"]) for imgs in numbers]
+ris_se = [mean(data[str(imgs)]["Ensembles"]["RandomInitShuffleEns"]["SE"]) for imgs in numbers]
+ris_mi = [mean(data[str(imgs)]["Ensembles"]["RandomInitShuffleEns"]["MI"]) for imgs in numbers]
 nuc = [mean(data[str(imgs)]["NUC"]) for imgs in numbers]
 
 
@@ -251,6 +258,8 @@ methods_to_show = [rand,
                    bag_mi,
                    aug_se,
                    aug_mi,
+                   ris_se,
+                   ris_mi,
                    nuc]
 labels = ["random",
           "softmax entropy",
@@ -260,6 +269,8 @@ labels = ["random",
           "bag MI",
           "aug SE",
           "aug MI",
+          "ris SE",
+          "ris MI",
           "NUC"]
 
 plt.figure(figsize=(14, 10))

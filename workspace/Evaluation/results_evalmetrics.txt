@@ -1,63 +1,73 @@
 CNN trained on 1000 data of cifar10:
 
-                        | AUROC | AUPR
-Softmax                 | 0.707 | 0.718
-MC Dropout SE           | 0.699 | 0.689
-MC Dropout MI           | 0.624 | 0.610
-Bagging SE              | 0.719 | 0.742
-Bagging MI              | 0.655 | 0.688
-Data Augmentation SE    | 0.731 | 0.786
-Data Augmentation MI    | 0.666 | 0.728
-Neighborhood Uncert     | 0.535 | 0.538
+                            | AUROC | AUPR  | max. uncertainty
+Softmax                     | 0.707 | 0.718 | 2.227
+MC Dropout SE               | 0.699 | 0.689 | 2.230
+MC Dropout MI               | 0.624 | 0.610 | 0.514
+Bagging SE                  | 0.719 | 0.742 | 2.225
+Bagging MI                  | 0.655 | 0.688 | 0.953
+Rand. Initial. & Shuffle SE | 0.715 | 0.757 |
+Rand. Initial. & Shuffle MI | 0.647 | 0.703 |
+Data Augmentation SE        | 0.731 | 0.786 | 2.211
+Data Augmentation MI        | 0.666 | 0.728 | 0.524
+Neighborhood Uncert         | 0.683 | 0.690 |
 
 
 CNN trained on 10000 data of cifar10:
 
-                        | AUROC | AUPR
-Softmax                 | 0.785 | 0.886
-MC Dropout SE           | 0.777 | 0.882
-MC Dropout MI           | 0.732 | 0.858
-Bagging SE              | 0.780 | 0.883
-Bagging MI              | 0.732 | 0.857
-Data Augmentation SE    | 0.785 | 0.900
-Data Augmentation MI    | 0.726 | 0.869
-Neighborhood Uncert     | 0.712 | 0.833
+                            | AUROC | AUPR  | max. uncertainty
+Softmax                     | 0.785 | 0.886 | 2.097
+MC Dropout SE               | 0.777 | 0.882 | 2.151
+MC Dropout MI               | 0.732 | 0.858 | 0.749
+Bagging SE                  | 0.780 | 0.883 | 2.168
+Bagging MI                  | 0.732 | 0.857 | 0.837
+Rand. Initial. & Shuffle SE | 0.789 | 0.897 | 2.193
+Rand. Initial. & Shuffle MI | 0.744 | 0.875 | 0.561
+Data Augmentation SE        | 0.785 | 0.900 | 2.193
+Data Augmentation MI        | 0.726 | 0.869 | 0.468
+Neighborhood Uncert         | 0.742 | 0.835 |
 
 
 CNN trained on whole cifar10:
 
-                        | AUROC | AUPR
-Softmax                 | 0.841 | 0.946
-MC Dropout SE           | 0.829 | 0.943
-MC Dropout MI           | 0.787 | 0.927
-Bagging SE              | 0.827 | 0.941
-Bagging MI              | 0.790 | 0.928
-Data Augmentation SE    | 0.825 | 0.943
-Data Augmentation MI    | 0.776 | 0.925
-Neighborhood Uncert     | 0.841 | 0.943
+                            | AUROC | AUPR  | max. uncertainty
+Softmax                     | 0.841 | 0.946 | 2.136
+MC Dropout SE               | 0.829 | 0.943 | 2.105
+MC Dropout MI               | 0.787 | 0.927 | 0.748
+Bagging SE                  | 0.827 | 0.941 | 2.135
+Bagging MI                  | 0.790 | 0.928 | 0.603
+Rand. Initial. & Shuffle SE | 0.837 | 0.948 | 2.196
+Rand. Initial. & Shuffle MI | 0.791 | 0.933 | 0.563
+Data Augmentation SE        | 0.825 | 0.943 | 2.152
+Data Augmentation MI        | 0.776 | 0.925 | 0.363
+Neighborhood Uncert         | 0.835 | 0.938 |
 
 
 CNN trained on cifar100:
 
-                        | AUROC | AUPR
-Softmax                 | 0.772 | 0.727
-MC Dropout SE           | 0.756 | 0.714
-MC Dropout MI           | 0.656 | 0.616
-Bagging SE              | 0.775 | 0.765
-Bagging MI              | 0.705 | 0.706
-Data Augmentation SE    | 0.777 | 0.769
-Data Augmentation MI    | 0.680 | 0.684
-Neighborhood Uncert     | 0.790 | 0.751
+                            | AUROC | AUPR
+Softmax                     | 0.772 | 0.727
+MC Dropout SE               | 0.756 | 0.714
+MC Dropout MI               | 0.656 | 0.616
+Bagging SE                  | 0.775 | 0.765
+Bagging MI                  | 0.705 | 0.706
+Rand. Initial. & Shuffle SE | 0.748 | 0.645
+Rand. Initial. & Shuffle MI | 0.645 | 0.583
+Data Augmentation SE        | 0.777 | 0.769
+Data Augmentation MI        | 0.680 | 0.684
+Neighborhood Uncert         | 0.821 | 0.787
 
 
 EfficientNetB0 trained on Imagenet:
 
-                        | AUROC | AUPR
-Softmax                 |       |
-MC Dropout SE           |       |
-MC Dropout MI           |       |
-Bagging SE              |       |
-Bagging MI              |       |
-Data Augmentation SE    |       |
-Data Augmentation MI    |       |
-Neighborhood Uncert     |       |
+                            | AUROC | AUPR
+Softmax                     |       |
+MC Dropout SE               |       |
+MC Dropout MI               |       |
+Bagging SE                  |       |
+Bagging MI                  |       |
+Rand. Initial. & Shuffle SE |       |
+Rand. Initial. & Shuffle MI |       |
+Data Augmentation SE        |       |
+Data Augmentation MI        |       |
+Neighborhood Uncert         |       |

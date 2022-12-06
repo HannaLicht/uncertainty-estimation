@@ -3,6 +3,8 @@ import tensorflow as tf
 from keras.applications import efficientnet
 import tensorflow_datasets as tfds
 import tensorflow_probability as tfp
+from matplotlib import pyplot as plt
+
 tfd = tfp.distributions
 
 translate = {
@@ -41,7 +43,7 @@ def create_simple_model():
     return model
 
 
-def ResNet(shape=(32, 32, 3), classes=100):
+def CNN(shape=(32, 32, 3), classes=100):
     x_input = tf.keras.layers.Input(shape)
     x = tf.keras.layers.ZeroPadding2D(3)(x_input)
     # initial conv layer

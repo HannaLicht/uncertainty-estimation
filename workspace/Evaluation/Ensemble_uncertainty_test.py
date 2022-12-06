@@ -2,9 +2,8 @@ from uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentation
 from functions import get_train_and_test_data
 import tensorflow as tf
 
-PATH_TO_PRETRAINED_RESNET_10 = "../models/classification/ResNet_cifar10_1000/cp.ckpt"
 NUM_MEMBERS = 5
-MODEL = "ResNet_cifar10"
+MODEL = "CNN_cifar10"
 METHOD = "data_augmentation"
 DATA = "cifar10"
 

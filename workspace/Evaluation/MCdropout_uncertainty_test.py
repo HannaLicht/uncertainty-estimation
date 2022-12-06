@@ -3,12 +3,12 @@ import re
 import keras.applications.efficientnet as efn
 from matplotlib import pyplot as plt
 
-from functions import create_simple_model, get_test_data, ResNet
+from functions import create_simple_model, get_test_data, CNN
 from uncertainty.MC_Dropout import MCDropoutEstimator
 import tensorflow as tf
 
 T = 50
-MODEL = "ResNet_cifar10"
+MODEL = "CNN_cifar10"
 CHECKPOINT_PATH = "../models/classification/" + MODEL + "/cp.ckpt"
 
 if MODEL == "simple_seq_model_mnist":
@@ -21,14 +21,14 @@ elif MODEL == "simple_seq_model_fashion_mnist":
     model = create_simple_model()
     model.load_weights(CHECKPOINT_PATH)
     estimator = MCDropoutEstimator(model, x, num_classes, T)
-elif MODEL == "ResNet_cifar100":
+elif MODEL == "CNN_cifar100":
     x, y, num_classes = get_test_data("cifar100")
-    model = ResNet(classes=100)
+    model = CNN(classes=100)
     model.load_weights(CHECKPOINT_PATH)
     estimator = MCDropoutEstimator(model, x, num_classes, T)
-elif re.match("ResNet_cifar10.*", MODEL):
+elif re.match("CNN_cifar10.*", MODEL):
     x, y, num_classes = get_test_data("cifar10")
-    model = ResNet(classes=10)
+    model = CNN(classes=10)
     model.load_weights(CHECKPOINT_PATH)
     estimator = MCDropoutEstimator(model, x, num_classes, T)
 elif MODEL == "effnetb0":

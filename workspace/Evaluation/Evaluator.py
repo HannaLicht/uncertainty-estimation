@@ -1,20 +1,24 @@
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import statistics
-from functions import ResNet, get_train_and_test_data
+import sys
+sys.path.append("/home/urz/hlichten")
+print(sys.path)
+from functions import CNN, get_train_and_test_data
 from uncertainty.MC_Dropout import MCDropoutEstimator
-from uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentationEns
+from uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentationEns, RandomInitShuffleEns
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
 DATA = "cifar100"
-MODEL = "ResNet"
-CHECKPOINT_PATH = "../models/classification/" + MODEL + "_" + DATA + "/cp.ckpt"
+MODEL = "CNN"
+CHECKPOINT_PATH = "models/classification/" + MODEL + "_" + DATA + "/cp.ckpt"
 NUM_MEMBERS = 5
 
 path_to_bagging_ens = ENSEMBLE_LOCATION + "/bagging/" + MODEL + "_" + DATA
 path_to_dataAug_ens = ENSEMBLE_LOCATION + "/data_augmentation/" + MODEL + "_" + DATA
+path_to_randInitShuffle_ens = ENSEMBLE_LOCATION + "/rand_initialization_shuffle/" + MODEL + "_" + DATA
 path_uncertainty_model = "../models/classification/uncertainty_model/" + DATA + "/cp.ckpt"
 
 
@@ -134,7 +138,7 @@ def subplot_evaluation(values, eval_metric: str, method: str):
     plt.ylabel(eval_metric)
 
 
-model = ResNet(classes=100 if DATA == "cifar100" else 10)
+model = CNN(classes=100 if DATA == "cifar100" else 10)
 model.load_weights(CHECKPOINT_PATH)
 x, y, x_test, y_test, num_classes = get_train_and_test_data("cifar10" if DATA == "cifar10_1000" or DATA == "cifar10_10000" else DATA)
 if DATA == "cifar10_1000":
@@ -147,11 +151,14 @@ MCEstimator = MCDropoutEstimator(model, x_test, num_classes, T=50)
 DAEstimator = DataAugmentationEns(x, y, x_test, num_classes, model_name=model_name,
                                   path_to_ensemble=path_to_dataAug_ens, num_members=NUM_MEMBERS,
                                   X_test=x_test, y_test=y_test)
+RISEstimator = RandomInitShuffleEns(x, y, x_test, num_classes, model_name=model_name,
+                                    path_to_ensemble=path_to_randInitShuffle_ens, num_members=NUM_MEMBERS,
+                                    X_test=x_test, y_test=y_test)
 BaEstimator = BaggingEns(x, y, x_test, num_classes, model_name=model_name, path_to_ensemble=path_to_bagging_ens,
                          num_members=NUM_MEMBERS, X_test=x_test, y_test=y_test)
 NUEstimator = NeighborhoodUncertaintyClassifier(model, x, tf.argmax(y, axis=-1), x_test, tf.argmax(y_test, axis=-1),
                                                 path_uncertainty_model=path_uncertainty_model)
-methods = ["MCdrop SE", "MCdrop MI", "Bag SE", "Bag MI",
+methods = ["MCdrop SE", "MCdrop MI", "Bag SE", "Bag MI",# "Rand SE", "Rand MI",
            "DataAug SE", "DataAug MI", "NUC", "Softmax"]
 
 lbls = tf.math.argmax(y_test, axis=-1)
@@ -159,20 +166,35 @@ y_pred = tf.math.argmax(model.predict(x_test, verbose=0), axis=-1)
 y_pred_drop = MCEstimator.get_ensemble_prediction()
 y_pred_bag = BaEstimator.get_ensemble_prediction()
 y_pred_aug = DAEstimator.get_ensemble_prediction()
-preds = [y_pred_drop, y_pred_drop, y_pred_bag, y_pred_bag, y_pred_aug, y_pred_aug, y_pred, y_pred]
+#y_pred_rand = RISEstimator.get_ensemble_prediction()
+preds = [y_pred_drop, y_pred_drop, y_pred_bag, y_pred_bag, #y_pred_rand, y_pred_rand,
+         y_pred_aug, y_pred_aug,
+         y_pred, y_pred]
 
 softmax_entropy = tfd.Categorical(probs=model.predict(x_test, verbose=0)).entropy().numpy()
+print("Max SE single softmax: ", tf.math.reduce_max(softmax_entropy).numpy())
 
 mcdr_se = MCEstimator.uncertainties_shannon_entropy()
+print("Max SE mc dropout: ", tf.math.reduce_max(mcdr_se).numpy())
 mcdr_mi = MCEstimator.uncertainties_mutual_information()
+print("Max MI mc dropout: ", tf.math.reduce_max(mcdr_mi).numpy())
 bag_se = BaEstimator.uncertainties_shannon_entropy()
+print("Max SE bagging: ", tf.math.reduce_max(bag_se).numpy())
 bag_mi = BaEstimator.uncertainties_mutual_information()
+print("Max MI bagging: ", tf.math.reduce_max(bag_mi).numpy())
+rand_se = RISEstimator.uncertainties_shannon_entropy()
+print("Max SE rand. initialization & data shuffle: ", tf.math.reduce_max(rand_se).numpy())
+rand_mi = RISEstimator.uncertainties_mutual_information()
+print("Max MI rand. initialization & data shuffle: ", tf.math.reduce_max(rand_mi).numpy())
 aug_se = DAEstimator.uncertainties_shannon_entropy()
+print("Max SE data augmentation: ", tf.math.reduce_max(aug_se).numpy())
 aug_mi = DAEstimator.uncertainties_mutual_information()
+print("Max MI data augmentation: ", tf.math.reduce_max(aug_mi).numpy())
 
 # make certainties between 0 and 1
 certainties = [1 - mcdr_se/tf.reduce_max(mcdr_se), 1 - mcdr_mi/tf.reduce_max(mcdr_mi),
                1 - bag_se/tf.reduce_max(bag_se), 1 - bag_mi/tf.reduce_max(bag_mi),
+               #1 - rand_se/tf.reduce_max(rand_se), 1 - rand_mi/tf.reduce_max(rand_mi),
                1 - aug_se/tf.reduce_max(aug_se), 1 - aug_mi/tf.reduce_max(aug_mi),
                NUEstimator.certainties, 1 - softmax_entropy/tf.reduce_max(softmax_entropy)
                ]
@@ -181,7 +203,6 @@ results = [Evaluator(lbls, y_pred, certainty).results(thr) for certainty, thr in
 print(methods)
 print([Evaluator(lbls, pred, cert).auroc() for cert, pred in zip(certainties, preds)])
 print([Evaluator(lbls, pred, cert).aupr() for cert, pred in zip(certainties, preds)])
-
 
 plt.figure(figsize=(10, 10))
 plt.suptitle(MODEL + " ---- " + DATA, fontsize=14)
@@ -199,3 +220,4 @@ for i, res in enumerate(results):
     subplot_evaluation(res[3], "Uncertainty Recall", methods[i])
 plt.legend(loc="lower right")
 plt.show()
+
