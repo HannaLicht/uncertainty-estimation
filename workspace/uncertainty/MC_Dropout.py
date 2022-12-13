@@ -70,6 +70,7 @@ class SamplingBasedEstimator:
             scores.append(score.numpy())
         return scores
 
+    # only works for classification tasks & labels must be known
     def plot_diagrams(self, lbls):
         pred_y = tf.math.argmax(self.p_ens, axis=-1)
         correct = (pred_y == lbls)
@@ -121,6 +122,50 @@ class SamplingBasedEstimator:
         plt.show()
 
 
+def make_MC_dropout(model, layer_regex):
+    # Auxiliary dictionary to describe the network graph
+    network_dict = {'input_layers_of': {}, 'new_output_tensor_of': {}}
+
+    # Set the input layers of each layer
+    for layer in model.layers:
+        for node in layer._outbound_nodes:
+            layer_name = node.outbound_layer.name
+            if layer_name not in network_dict['input_layers_of']:
+                network_dict['input_layers_of'].update({layer_name: [layer.name]})
+            else:
+                network_dict['input_layers_of'][layer_name].append(layer.name)
+
+    # Set the output tensor of the input layer
+    network_dict['new_output_tensor_of'].update({model.layers[0].name: model.input})
+
+    # Iterate over all layers after the input
+    model_outputs = []
+    for layer in model.layers[1:]:
+
+        # Determine input tensors
+        layer_input = [network_dict['new_output_tensor_of'][layer_aux]
+                       for layer_aux in network_dict['input_layers_of'][layer.name]]
+        if len(layer_input) == 1:
+            layer_input = layer_input[0]
+
+        # Insert layer if name matches the regular expression
+        if re.match(layer_regex, layer.name):
+            # training=True important to enable active dropout when predicting -> MC Monte Carlo
+            x = layer(layer_input, training=True)
+            # print('New layer: {} Old layer: {} Type: {}'.format(new_layer.name, layer.name, position))
+        else:
+            x = layer(layer_input)
+
+        # Set new output tensor (the original one, or the one of the inserted layer)
+        network_dict['new_output_tensor_of'].update({layer.name: x})
+
+        # Save tensor in output list if it is output in initial model
+        if layer_name in model.output_names:
+            model_outputs.append(x)
+
+    return tf.keras.Model(inputs=model.inputs, outputs=model_outputs)
+
+
 class MCDropoutEstimator(SamplingBasedEstimator):
 
     def __init__(self, model, X, num_classes=10, T=50):
@@ -130,7 +175,7 @@ class MCDropoutEstimator(SamplingBasedEstimator):
         """
         self.T = T
         self.estimator_name = "MC Dropout"
-        self.model = self.make_MC_dropout(model, layer_regex=".*drop.*")
+        self.model = make_MC_dropout(model, layer_regex=".*drop.*")
 
         # check, if all dropout layers are MC dropout layers (training=True -> activated during inference)
         #for layer in self.model.get_config().get("layers"):
@@ -145,46 +190,54 @@ class MCDropoutEstimator(SamplingBasedEstimator):
             self.predictions.append(preds)
         self.p_ens = tf.math.reduce_mean(self.predictions, axis=0)
 
-    def make_MC_dropout(self, model, layer_regex):
-        # Auxiliary dictionary to describe the network graph
-        network_dict = {'input_layers_of': {}, 'new_output_tensor_of': {}}
+'''
+class SamplingBasedEstimatorImageSegmentation(SamplingBasedEstimator):
 
-        # Set the input layers of each layer
-        for layer in model.layers:
-            for node in layer._outbound_nodes:
-                layer_name = node.outbound_layer.name
-                if layer_name not in network_dict['input_layers_of']:
-                    network_dict['input_layers_of'].update({layer_name: [layer.name]})
-                else:
-                    network_dict['input_layers_of'][layer_name].append(layer.name)
+    def uncertainties_shannon_entropy(self):
+        mi_per_pixel = tfd.Categorical(probs=self.p_ens).entropy()
+        mi_per_image = tf.reduce_mean(mi_per_pixel, axis=-1)
+        return mi_per_image.numpy()
 
-        # Set the output tensor of the input layer
-        network_dict['new_output_tensor_of'].update({model.layers[0].name: model.input})
+    def uncertainties_mutual_information(self):
+        h = tfd.Categorical(probs=self.p_ens).entropy()
+        mi = 0
+        for prediction in self.predictions:
+            mi = mi - tfd.Categorical(probs=prediction).entropy()
+        mi = mi / len(self.predictions) + h
+        mean_mi = tf.reduce_mean(mi, axis=-1)
+        return mean_mi
 
-        # Iterate over all layers after the input
-        model_outputs = []
-        for layer in model.layers[1:]:
 
-            # Determine input tensors
-            layer_input = [network_dict['new_output_tensor_of'][layer_aux]
-                           for layer_aux in network_dict['input_layers_of'][layer.name]]
-            if len(layer_input) == 1:
-                layer_input = layer_input[0]
+class MCDropoutEstimatorImageSegmentation(SamplingBasedEstimatorImageSegmentation):
 
-            # Insert layer if name matches the regular expression
-            if re.match(layer_regex, layer.name):
-                # training=True important to enable active dropout when predicting -> MC Monte Carlo
-                x = layer(layer_input, training=True)
-                # print('New layer: {} Old layer: {} Type: {}'.format(new_layer.name, layer.name, position))
-            else:
-                x = layer(layer_input)
+    def __init__(self, model, X, num_classes=3, T=50):
+        """
+        :param X: data for which the uncertainty should be estimated
+        :param T: number of runs with activated dropout at inference time
+        """
+        self.T = T
+        self.estimator_name = "MC Dropout"
+        for layer in model.get_config().get("layers"):
+            print(layer)
+        self.model = make_MC_dropout(model, layer_regex=".*drop.*")
 
-            # Set new output tensor (the original one, or the one of the inserted layer)
-            network_dict['new_output_tensor_of'].update({layer.name: x})
+        # check, if all dropout layers are MC dropout layers (training=True -> activated during inference)
+        for layer in self.model.get_config().get("layers"):
+            print(layer)
 
-            # Save tensor in output list if it is output in initial model
-            if layer_name in model.output_names:
-                model_outputs.append(x)
+        self.X, self.num_classes, self.predictions = X, num_classes, []
+        # batch to reduce RAM usage
+        X = [X[i:i + 1000] for i in range(0, len(X), 1000)]
+        for _ in tqdm.tqdm(range(self.T)):
+            preds = self.model(X[0])[-1]
+            for img_batch in X[1:]:
+                preds = tf.concat([preds, self.model(img_batch)[-1]], axis=0)
+            self.predictions.append(preds)
+        print(len(self.predictions))
+        self.p_ens = tf.math.reduce_mean(self.predictions, axis=0)
+        print(self.p_ens.shape)
 
-        return tf.keras.Model(inputs=model.inputs, outputs=model_outputs)
 
+model = tf.keras.models.load_model("../models/semantic_segmentation/modified_UNet")
+MCDropoutEstimatorImageSegmentation(model, None)
+'''

@@ -1,29 +1,34 @@
-from uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentationEns
+from uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentationEns, RandomInitShuffleEns
 from functions import get_train_and_test_data
 import tensorflow as tf
 
 NUM_MEMBERS = 5
-MODEL = "CNN_cifar10"
-METHOD = "data_augmentation"
-DATA = "cifar10"
+MODEL = "modified_UNet"
+METHOD = "rand_initialization_shuffle"
+DATA = "pets"
 
 path_to_ensemble = ENSEMBLE_LOCATION + "/" + METHOD + "/" + MODEL
+
 X_train, y_train, X_test, y_test, classes = get_train_and_test_data(DATA)
 
 if METHOD == "bagging":
     estimator = BaggingEns(
-        X_train, y_train, X_test, classes,
+        X_train, y_train, X_test, classes, X_test=X_test, y_test=y_test,
         model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS)
 elif METHOD == "data_augmentation":
     estimator = DataAugmentationEns(
-        X_train, y_train, X_test, classes,
+        X_train, y_train, X_test, classes, X_test=X_test, y_test=y_test,
+        model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS
+    )
+elif METHOD == "rand_initialization_shuffle":
+    estimator = RandomInitShuffleEns(
+        X_train, y_train, X_test, classes, X_test=X_test, y_test=y_test,
         model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS
     )
 else:
     raise NotImplementedError
 
 pred = estimator.get_ensemble_prediction()
-
 
 print("Simple model accuracy:" + str(estimator.get_simple_model_accuracy(y_test)))
 print("Ensemble accuracy: " + str(estimator.get_ensemble_accuracy(y_test)) + "\n")

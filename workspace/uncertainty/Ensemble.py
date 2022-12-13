@@ -1,9 +1,13 @@
+import random
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from matplotlib import pyplot as plt
 from keras.preprocessing.image import ImageDataGenerator
 from functions import create_simple_model, CNN
 from abc import abstractmethod
+import tensorflow_probability as tfp
+
+from models.semantic_segmentation.train_and_save_modified_UNet import unet_model
 from uncertainty.MC_Dropout import SamplingBasedEstimator
 
 ENSEMBLE_LOCATION = "models/classification/ensembles"
@@ -31,13 +35,18 @@ class Ensemble(SamplingBasedEstimator):
             self.init_new_ensemble(path_to_ensemble, X_train, y_train, X_test, y_test, model_name, num_members,
                                    optimizer, loss, metrics)
 
-
     @abstractmethod
     def prepare_data(self, X_train, y_train, num_members):
         """create ensemble based on certain approaches"""
 
     def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_test, y_test, model_name, num_members,
                           optimizer, loss, metrics):
+        if y_train[0].shape == (128, 128, 1):
+            X_train = tf.reshape(X_train, (-1, 128, 128, 3))
+            X_test = tf.reshape(X_test, (-1, 128, 128, 3))
+            y_train = tf.reshape(y_train, (-1, 128, 128, 1))
+            y_test = tf.reshape(y_test, (-1, 128, 128, 1))
+
         train_imgs, train_lbls = self.prepare_data(X_train, y_train, num_members)
 
         if model_name == "simple_seq_model":
@@ -49,6 +58,8 @@ class Ensemble(SamplingBasedEstimator):
                 member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
         elif model_name == "CNN_cifar100":
             self.members = [CNN(classes=100) for _ in range(num_members)]
+        elif model_name == "modified_UNet":
+            self.members = [unet_model(output_channels=self.num_classes) for _ in range(num_members)]
         else:
             raise NotImplementedError
 
@@ -57,7 +68,8 @@ class Ensemble(SamplingBasedEstimator):
 
         # train ensemble members
         for index, (model, imgs, lbls) in enumerate(zip(self.members, train_imgs, train_lbls)):
-            model.fit(imgs, lbls, validation_data=(X_test, y_test), epochs=1000, batch_size=128, callbacks=[early_stop, rlrop])
+            model.fit(imgs, lbls, validation_data=(X_test, y_test), epochs=1000,
+                      batch_size=128 if len(lbls) >= 1000 else 32, callbacks=[early_stop, rlrop])
             if path_to_ensemble is not None:
                 model.save(path_to_ensemble + "/member_" + str(index))
 
@@ -108,6 +120,12 @@ class DataAugmentationEns(Ensemble):
 
     def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_test, y_test, model_name, num_members,
                           optimizer, loss, metrics):
+        if y_train[0].shape == (128, 128, 1):
+            X_train = tf.reshape(X_train, (-1, 128, 128, 3))
+            X_test = tf.reshape(X_test, (-1, 128, 128, 3))
+            y_train = tf.reshape(y_train, (-1, 128, 128, 1))
+            y_test = tf.reshape(y_test, (-1, 128, 128, 1))
+
         data_generator = self.prepare_data(X_train, y_train, num_members)
 
         if model_name == "simple_seq_model":
@@ -119,6 +137,8 @@ class DataAugmentationEns(Ensemble):
                 member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
         elif model_name == "CNN_cifar100":
             self.members = [CNN(classes=100) for _ in range(num_members)]
+        elif model_name == "modified_UNet":
+            self.members = [unet_model(output_channels=self.num_classes) for _ in range(num_members)]
         else:
             raise NotImplementedError
 
@@ -136,17 +156,58 @@ class DataAugmentationEns(Ensemble):
         self.predict()
 
     def prepare_data(self, xtrain, ytrain, num_members):
-        data_augmentation = ImageDataGenerator(rotation_range=1, width_shift_range=0.05, height_shift_range=0.05,
-                                               zoom_range=.1, horizontal_flip=True, fill_mode='reflect')
+        if ytrain[0].shape == (128, 128, 1):
+
+            def add_noise(img):
+                """Add random noise to an image"""
+                variability = 0.01
+                deviation = variability * random.random()
+                noise = tfp.distributions.Normal(tf.fill(img.shape, 0.), tf.fill(img.shape, deviation))
+                img += noise.sample()
+                tf.clip_by_value(img, 0., 255.)
+                return img
+
+            data_augmentation = ImageDataGenerator(preprocessing_function=add_noise)
+
+            '''
+            mask_datagen = ImageDataGenerator(**data_gen_args)
+
+            # Provide the same seed and keyword arguments to the fit and flow methods seed = 1
+            image_datagen.fit(xtrain, augment=True, seed=[42, 35, 2, 7, 8])
+            mask_datagen.fit(ytrain, augment=True, seed=[42, 35, 2, 7, 8])
+
+            image_iterator = image_datagen.flow(xtrain, batch_size=128 if len(ytrain) >= 1000 else 32, seed=1)
+            mask_iterator = mask_datagen.flow(ytrain, batch_size=128 if len(ytrain) >= 1000 else 32, seed=1)
+
+            plt.figure(figsize=(8, 16))
+            for i in range(4):
+                image_iterator = image_datagen.flow(xtrain, batch_size=128 if len(ytrain) >= 1000 else 32, seed=1)
+                mask_iterator = mask_datagen.flow(ytrain, batch_size=128 if len(ytrain) >= 1000 else 32, seed=1)
+                augmented_image = next(image_iterator)
+                augmented_mask = next(mask_iterator)
+                plt.subplot(4, 2, 2 * i + 1)
+                plt.imshow(augmented_image[0])
+                plt.subplot(4, 2, 2 * i + 2)
+                plt.imshow(augmented_mask[0])
+                plt.axis("off")
+            plt.show()
+
+            train_iterator = zip(image_iterator, mask_iterator)
+            return train_iterator
+            '''
+        else:
+            data_augmentation = ImageDataGenerator(rotation_range=1, width_shift_range=0.05, height_shift_range=0.05,
+                                                   zoom_range=.1, horizontal_flip=True, fill_mode='reflect')
         data_augmentation.fit(xtrain, augment=True)
-        iterator = data_augmentation.flow(xtrain, ytrain, shuffle=True, batch_size=128)
-        '''
-        plt.figure(figsize=(10, 10))
+        iterator = data_augmentation.flow(xtrain, ytrain, shuffle=True, batch_size=128 if len(ytrain) >= 1000 else 32)
+
+        '''plt.figure(figsize=(10, 10))
         for i in range(9):
-            augmented_image = next(iterator)
+            iter = data_augmentation.flow(xtrain, ytrain, shuffle=False, batch_size=128)
+            augmented_batch = next(iter)
             plt.subplot(3, 3, i + 1)
-            plt.imshow(augmented_image[0])
+            plt.imshow(augmented_batch[0][2])
             plt.axis("off")
-        plt.show()
-        '''
+        plt.show()'''
+
         return iterator

@@ -2,6 +2,7 @@ import random
 import json
 import sys
 sys.path.append("/home/urz/hlichten")
+#sys.path.append("/home/hanna/Schreibtisch/Ingenieurinformatik VW/Igenieurinformatik/BA/uncertainty-estimation/workspace")
 print(sys.path)
 
 import matplotlib.pyplot as plt
@@ -16,12 +17,12 @@ tfd = tfp.distributions
 
 STARTDATA = 1000
 NUM_IMAGES = 1000
-RUNS = 3
-PATH_TO_PRETRAINED_CNN_10 = "models/classification/CNN_cifar10_" + str(STARTDATA) + "/cp.ckpt"
+RUNS = 6
+PATH_TO_PRETRAINED_CNN_10 = "../models/classification/CNN_cifar10_" + str(STARTDATA) + "/cp.ckpt"
 PATH_TO_PRETRAINED_CNN_100 = "models/classification/CNN_cifar100/cp.ckpt"
 
 
-times_images_added = 9 if STARTDATA == 1000 else 5
+times_images_added = 5 if STARTDATA == 10000 else 9
 
 (xleft, yleft), (xtest, ytest) = tf.keras.datasets.cifar10.load_data()
 xleft = xleft.reshape(-1, 32, 32, 3) / 255.0
@@ -29,11 +30,6 @@ xtest = xtest.reshape(-1, 32, 32, 3) / 255.0
 
 xtrain, ytrain = xleft[:STARTDATA], yleft[:STARTDATA]
 xleft, yleft = xleft[STARTDATA:], yleft[STARTDATA:]
-
-# comment if model already trained on STARTDATA of cifar10 training data
-#train_base_model(PATH_TO_PRETRAINED_CNN_100, PATH_TO_PRETRAINED_CNN_10,
- #                xtrain, tf.keras.utils.to_categorical(ytrain.reshape((-1)), 10),
-  #               xtest, tf.keras.utils.to_categorical(ytest.reshape((-1)), 10))
 
 
 def mean(l):
@@ -96,7 +92,7 @@ class RetrainingEvaluator:
         rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
         model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
         model.fit(self.X_train, self.y_train, validation_data=(self.X_test, self.y_test),
-                  callbacks=[early_stop, rlrop], verbose=1, epochs=1000, batch_size=128)
+                  callbacks=[early_stop, rlrop], verbose=1, epochs=1000, batch_size=128 if STARTDATA >= 1000 else 32)
         loss, acc = model.evaluate(self.X_test, self.y_test, verbose=2)
         return acc, model
 
@@ -167,9 +163,8 @@ def retrain_with_nuc():
 
         for i in range(times_images_added):
             uncertainty_estimator = \
-                NeighborhoodUncertaintyClassifier(model, retrainer.X_train, tf.argmax(retrainer.y_train, axis=-1),
-                                                  retrainer.X_test, tf.argmax(retrainer.y_test, axis=-1),
-                                                  retrainer.X_left)
+                NeighborhoodUncertaintyClassifier(model, retrainer.X_train, retrainer.y_train, retrainer.X_test,
+                                                  retrainer.y_test, retrainer.X_left)
             acc, model = retrainer.retrain(model, NUM_IMAGES, uncertainty_estimator.certainties)
 
             with open('results_retrain.json') as json_file:
@@ -216,6 +211,11 @@ def retrain_with_random_data():
                 json.dump(data, json_file, indent=4)
 
 
+# comment if model already trained on STARTDATA of cifar10 training data
+#train_base_model(PATH_TO_PRETRAINED_CNN_100, PATH_TO_PRETRAINED_CNN_10,
+ #                xtrain, tf.keras.utils.to_categorical(ytrain.reshape((-1)), 10),
+  #               xtest, tf.keras.utils.to_categorical(ytest.reshape((-1)), 10))
+
 prepare_model().evaluate(xtest, tf.keras.utils.to_categorical(ytest.reshape((-1)), 10))
 # check whether the classes are balanced in train dataset
 print([list(ytrain).count(i) for i in range(10)])
@@ -227,58 +227,60 @@ print([list(ytrain).count(i) for i in range(10)])
 #retrain_with_random_data()
 #retrain_with_ensemble(BaggingEns, "SE")
 #retrain_with_ensemble(BaggingEns, "MI")
-retrain_with_ensemble(DataAugmentationEns, "SE")
+#retrain_with_ensemble(DataAugmentationEns, "SE")
 #retrain_with_ensemble(DataAugmentationEns, "MI")
-retrain_with_ensemble(RandomInitShuffleEns, "SE")
-retrain_with_ensemble(RandomInitShuffleEns, "MI")
+#retrain_with_ensemble(RandomInitShuffleEns, "SE")
+#retrain_with_ensemble(RandomInitShuffleEns, "MI")
 
 with open('results_retrain.json') as json_file:
     data = json.load(json_file)
     data = data[str(STARTDATA)]
 
 numbers = [STARTDATA + i*NUM_IMAGES for i in range(times_images_added+1)]
-rand = [mean(data[str(imgs)]["random"]) for imgs in numbers]
-softmax = [mean(data[str(imgs)]["softmax_entropy"]) for imgs in numbers]
-mc_se = [mean(data[str(imgs)]["MC_drop"]["SE"]) for imgs in numbers]
-mc_mi = [mean(data[str(imgs)]["MC_drop"]["MI"]) for imgs in numbers]
-bag_se = [mean(data[str(imgs)]["Ensembles"]["BaggingEns"]["SE"]) for imgs in numbers]
-bag_mi = [mean(data[str(imgs)]["Ensembles"]["BaggingEns"]["MI"]) for imgs in numbers]
-aug_se = [mean(data[str(imgs)]["Ensembles"]["DataAugmentationEns"]["SE"]) for imgs in numbers]
-aug_mi = [mean(data[str(imgs)]["Ensembles"]["DataAugmentationEns"]["MI"]) for imgs in numbers]
-ris_se = [mean(data[str(imgs)]["Ensembles"]["RandomInitShuffleEns"]["SE"]) for imgs in numbers]
-ris_mi = [mean(data[str(imgs)]["Ensembles"]["RandomInitShuffleEns"]["MI"]) for imgs in numbers]
-nuc = [mean(data[str(imgs)]["NUC"]) for imgs in numbers]
+rand = [mean(data[str(imgs)]["random"])*100 for imgs in numbers]
+softmax = [mean(data[str(imgs)]["softmax_entropy"])*100 for imgs in numbers]
+mc_se = [mean(data[str(imgs)]["MC_drop"]["SE"])*100 for imgs in numbers]
+mc_mi = [mean(data[str(imgs)]["MC_drop"]["MI"])*100 for imgs in numbers]
+bag_se = [mean(data[str(imgs)]["Ensembles"]["BaggingEns"]["SE"])*100 for imgs in numbers]
+bag_mi = [mean(data[str(imgs)]["Ensembles"]["BaggingEns"]["MI"])*100 for imgs in numbers]
+aug_se = [mean(data[str(imgs)]["Ensembles"]["DataAugmentationEns"]["SE"])*100 for imgs in numbers]
+aug_mi = [mean(data[str(imgs)]["Ensembles"]["DataAugmentationEns"]["MI"])*100 for imgs in numbers]
+ris_se = [mean(data[str(imgs)]["Ensembles"]["RandomInitShuffleEns"]["SE"])*100 for imgs in numbers]
+ris_mi = [mean(data[str(imgs)]["Ensembles"]["RandomInitShuffleEns"]["MI"])*100 for imgs in numbers]
+nuc = [mean(data[str(imgs)]["NUC"])*100 for imgs in numbers]
 
 
 methods_to_show = [rand,
-                   softmax,
-                   mc_se,
-                   mc_mi,
-                   bag_se,
-                   bag_mi,
-                   aug_se,
-                   aug_mi,
-                   ris_se,
-                   ris_mi,
+                   #softmax,
+                   #mc_se,
+                   #mc_mi]
+                   #bag_se,
+                   #bag_mi,
+                   #aug_se,
+                   #aug_mi,
+                   #ris_se]
+                   #ris_mi]
                    nuc]
 labels = ["random",
-          "softmax entropy",
-          "MCdr SE",
-          "MCdr MI",
-          "bag SE",
-          "bag MI",
-          "aug SE",
-          "aug MI",
-          "ris SE",
-          "ris MI",
+          #"softmax entropy",
+          #"MCdr SE",
+          #"MCdr MI"]
+          #"bag SE",
+          #"bag MI",
+          #"aug SE",
+          #"aug MI",
+          #"ris SE"]
+          #"ris MI"]
           "NUC"]
 
-plt.figure(figsize=(14, 10))
+plt.figure(figsize=(8, 5))
 for method, lbl in zip(methods_to_show, labels):
     plt.plot(numbers, method, label=lbl)
 #plt.xticks([i for i in range(len(IMAGES))], IMAGES)
 plt.xlabel("images to label")
-plt.ylabel("Validation Accuracy")
+plt.ylabel("Validation Accuracy in percent")
+if STARTDATA == 1000:
+    plt.ylim(49.5, 68.)
 
 plt.legend(loc="lower right")
 plt.show()

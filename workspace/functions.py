@@ -131,6 +131,30 @@ def get_train_and_test_data(data):
         y_test = tf.keras.utils.to_categorical(y_test.reshape((-1)), 10)
         return X_train, y_train, X_test, y_test, 10
 
+    elif data == "pets":
+        # oxford-IIIT Pets dataset
+        dataset, info = tfds.load('oxford_iiit_pet:3.*.*', with_info=True)
+
+        def normalize(input_image, input_mask):
+            input_image = tf.cast(input_image, tf.float32) / 255.0
+            input_mask -= 1  # change labels from (1, 2, 3) to (0, 1, 2)
+            return input_image, input_mask
+
+        def load_image(datapoint):
+            input_image = tf.image.resize(datapoint['image'], (128, 128))
+            input_mask = tf.image.resize(datapoint['segmentation_mask'], (128, 128))
+            input_image, input_mask = normalize(input_image, input_mask)
+            return input_image, input_mask
+
+        train_images = dataset['train'].map(load_image, num_parallel_calls=tf.data.AUTOTUNE)
+        xtrain, ytrain = list(zip(*train_images))
+        test_images = dataset['test'].map(load_image, num_parallel_calls=tf.data.AUTOTUNE)
+        xtest, ytest = list(zip(*test_images))
+        return xtrain, ytrain, xtest, ytest, 3
+
+    else:
+        raise NotImplementedError
+
 
 def get_train_data(data):
     """

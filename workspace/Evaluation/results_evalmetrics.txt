@@ -1,4 +1,26 @@
+CNN trained on 100 data of cifar10:
+
+accuracy on traindata (first 100) = 0.8400
+accuracy on testdata = 0.2881
+
+                            | AUROC | AUPR
+Softmax                     | 0.629 | 0.433
+MC Dropout SE               | 0.630 | 0.442
+MC Dropout MI               | 0.562 | 0.378
+Bagging SE                  | 0.616 | 0.435
+Bagging MI                  | 0.504 | 0.324
+Rand. Initial. & Shuffle SE | 0.632 | 0.444
+Rand. Initial. & Shuffle MI | 0.529 | 0.368
+Data Augmentation SE        | 0.635 | 0.482
+Data Augmentation MI        | 0.521 | 0.382
+Neighborhood Uncert         | 0.548 | 0.335      -> too few data to train the uncertainty classifier
+
+
+
 CNN trained on 1000 data of cifar10:
+
+accuracy on traindata (first 1000) = 0.7410
+accuracy on testdata = 0.4977
 
                             | AUROC | AUPR  | max. uncertainty
 Softmax                     | 0.707 | 0.718 | 2.227
@@ -10,10 +32,14 @@ Rand. Initial. & Shuffle SE | 0.715 | 0.757 |
 Rand. Initial. & Shuffle MI | 0.647 | 0.703 |
 Data Augmentation SE        | 0.731 | 0.786 | 2.211
 Data Augmentation MI        | 0.666 | 0.728 | 0.524
-Neighborhood Uncert         | 0.683 | 0.690 |
+Neighborhood Uncert         | 0.685 | 0.691 |               -> too few data to train the uncertainty classifier
+
 
 
 CNN trained on 10000 data of cifar10:
+
+accuracy on traindata (first 10000) = 0.8969                -> imbalanced and not enough data for NUC :(
+accuracy on testdata = 0.6686
 
                             | AUROC | AUPR  | max. uncertainty
 Softmax                     | 0.785 | 0.886 | 2.097
@@ -25,10 +51,14 @@ Rand. Initial. & Shuffle SE | 0.789 | 0.897 | 2.193
 Rand. Initial. & Shuffle MI | 0.744 | 0.875 | 0.561
 Data Augmentation SE        | 0.785 | 0.900 | 2.193
 Data Augmentation MI        | 0.726 | 0.869 | 0.468
-Neighborhood Uncert         | 0.742 | 0.835 |
+Neighborhood Uncert         | 0.776 | 0.871 |
+
 
 
 CNN trained on whole cifar10:
+
+accuracy on traindata = 0.8939                              -> imbalanced data for NUC :(
+accuracy on testdata = 0.7601
 
                             | AUROC | AUPR  | max. uncertainty
 Softmax                     | 0.841 | 0.946 | 2.136
@@ -40,10 +70,15 @@ Rand. Initial. & Shuffle SE | 0.837 | 0.948 | 2.196
 Rand. Initial. & Shuffle MI | 0.791 | 0.933 | 0.563
 Data Augmentation SE        | 0.825 | 0.943 | 2.152
 Data Augmentation MI        | 0.776 | 0.925 | 0.363
-Neighborhood Uncert         | 0.835 | 0.938 |
+Neighborhood Uncert         | 0.841 | 0.944 |
+
 
 
 CNN trained on cifar100:
+
+accuracy on traindata = 0.4761   -> NUC performs well due to balanced correctness of data:
+                                    Classifier trained to predict a wrong decision for half of the data, not only for 10%
+accuracy on testdata = 0.3981
 
                             | AUROC | AUPR
 Softmax                     | 0.772 | 0.727
@@ -55,7 +90,8 @@ Rand. Initial. & Shuffle SE | 0.748 | 0.645
 Rand. Initial. & Shuffle MI | 0.645 | 0.583
 Data Augmentation SE        | 0.777 | 0.769
 Data Augmentation MI        | 0.680 | 0.684
-Neighborhood Uncert         | 0.821 | 0.787
+Neighborhood Uncert         | 0.819 | 0.786
+
 
 
 EfficientNetB0 trained on Imagenet:

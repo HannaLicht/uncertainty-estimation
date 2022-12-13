@@ -16,12 +16,10 @@ xtrain, ytrain, xtest, ytest, _ = get_train_and_test_data(data)
 #ytest = ytrain[1000:]
 
 model.evaluate(xtest, ytest)
-ytrain = tf.argmax(ytrain, axis=-1).numpy()
-ytest = tf.argmax(ytest, axis=-1).numpy()
 
 estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xtest, ytest,
                                               path_uncertainty_model=path_uncertainty_model)
-
+ytest = tf.argmax(ytest, axis=-1).numpy()
 certainties = estimator.certainties
 index = sorted(range(len(certainties)), key=certainties.__getitem__, reverse=False)
 print("most and least uncertain samples: " + str(index[0]) + ": " + str(certainties[index[0]]) + ",   " +
