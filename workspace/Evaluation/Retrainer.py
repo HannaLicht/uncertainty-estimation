@@ -15,14 +15,14 @@ from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifie
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
-STARTDATA = 1000
+STARTDATA = 10000
 NUM_IMAGES = 1000
-RUNS = 6
-PATH_TO_PRETRAINED_CNN_10 = "../models/classification/CNN_cifar10_" + str(STARTDATA) + "/cp.ckpt"
+RUNS = 1
+PATH_TO_PRETRAINED_CNN_10 = "models/classification/CNN_cifar10_" + str(STARTDATA) + "/cp.ckpt"
 PATH_TO_PRETRAINED_CNN_100 = "models/classification/CNN_cifar100/cp.ckpt"
 
 
-times_images_added = 5 if STARTDATA == 10000 else 9
+times_images_added = 10 if STARTDATA == 10000 else 9
 
 (xleft, yleft), (xtest, ytest) = tf.keras.datasets.cifar10.load_data()
 xleft = xleft.reshape(-1, 32, 32, 3) / 255.0
@@ -220,17 +220,17 @@ prepare_model().evaluate(xtest, tf.keras.utils.to_categorical(ytest.reshape((-1)
 # check whether the classes are balanced in train dataset
 print([list(ytrain).count(i) for i in range(10)])
 
-#retrain_with_MCdrop("SE")
-#retrain_with_MCdrop("MI")
-#retrain_with_nuc()
-#retrain_with_softmax_entropy()
-#retrain_with_random_data()
-#retrain_with_ensemble(BaggingEns, "SE")
-#retrain_with_ensemble(BaggingEns, "MI")
-#retrain_with_ensemble(DataAugmentationEns, "SE")
-#retrain_with_ensemble(DataAugmentationEns, "MI")
-#retrain_with_ensemble(RandomInitShuffleEns, "SE")
-#retrain_with_ensemble(RandomInitShuffleEns, "MI")
+retrain_with_ensemble(DataAugmentationEns, "MI")
+retrain_with_ensemble(RandomInitShuffleEns, "SE")
+retrain_with_ensemble(RandomInitShuffleEns, "MI")
+retrain_with_MCdrop("SE")
+retrain_with_MCdrop("MI")
+retrain_with_nuc()
+retrain_with_softmax_entropy()
+retrain_with_random_data()
+retrain_with_ensemble(BaggingEns, "SE")
+retrain_with_ensemble(BaggingEns, "MI")
+retrain_with_ensemble(DataAugmentationEns, "SE")
 
 with open('results_retrain.json') as json_file:
     data = json.load(json_file)

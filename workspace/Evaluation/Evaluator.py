@@ -13,7 +13,7 @@ from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifie
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
-DATA = "cifar10_100"
+DATA = "cifar10_1000"
 MODEL = "CNN"
 CHECKPOINT_PATH = "models/classification/" + MODEL + "_" + DATA + "/cp.ckpt"
 NUM_MEMBERS = 5
@@ -153,6 +153,9 @@ elif DATA == "cifar10_10000":
 elif DATA == "cifar10_100":
     x, y = x[:100], y[:100]
 
+lbls = tf.math.argmax(y_test, axis=-1).numpy()
+y_pred = tf.math.argmax(model.predict(x_test), axis=-1).numpy()
+
 _, acc = model.evaluate(x, y)
 print("Accuracy on train dataset: ", acc)
 _, acc = model.evaluate(x_test, y_test)
@@ -175,8 +178,6 @@ NUEstimator = NeighborhoodUncertaintyClassifier(model, x, y, x_test, y_test,
 methods = ["MCdrop SE", "MCdrop MI", "Bag SE", "Bag MI", "Rand SE", "Rand MI",
            "DataAug SE", "DataAug MI", "NUC", "Softmax"]
 
-lbls = tf.math.argmax(y_test, axis=-1)
-y_pred = tf.math.argmax(model.predict(x_test, verbose=0), axis=-1)
 y_pred_drop = MCEstimator.get_ensemble_prediction()
 y_pred_bag = BaEstimator.get_ensemble_prediction()
 y_pred_aug = DAEstimator.get_ensemble_prediction()
@@ -189,21 +190,13 @@ softmax_entropy = tfd.Categorical(probs=model.predict(x_test, verbose=0)).entrop
 print("Max SE single softmax: ", tf.math.reduce_max(softmax_entropy).numpy())
 
 mcdr_se = MCEstimator.uncertainties_shannon_entropy()
-print("Max SE mc dropout: ", tf.math.reduce_max(mcdr_se).numpy())
 mcdr_mi = MCEstimator.uncertainties_mutual_information()
-print("Max MI mc dropout: ", tf.math.reduce_max(mcdr_mi).numpy())
 bag_se = BaEstimator.uncertainties_shannon_entropy()
-print("Max SE bagging: ", tf.math.reduce_max(bag_se).numpy())
 bag_mi = BaEstimator.uncertainties_mutual_information()
-print("Max MI bagging: ", tf.math.reduce_max(bag_mi).numpy())
 rand_se = RISEstimator.uncertainties_shannon_entropy()
-print("Max SE rand. initialization & data shuffle: ", tf.math.reduce_max(rand_se).numpy())
 rand_mi = RISEstimator.uncertainties_mutual_information()
-print("Max MI rand. initialization & data shuffle: ", tf.math.reduce_max(rand_mi).numpy())
 aug_se = DAEstimator.uncertainties_shannon_entropy()
-print("Max SE data augmentation: ", tf.math.reduce_max(aug_se).numpy())
 aug_mi = DAEstimator.uncertainties_mutual_information()
-print("Max MI data augmentation: ", tf.math.reduce_max(aug_mi).numpy())
 
 # make certainties between 0 and 1
 certainties = [1 - mcdr_se/tf.reduce_max(mcdr_se), 1 - mcdr_mi/tf.reduce_max(mcdr_mi),

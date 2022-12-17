@@ -7,13 +7,12 @@ from uncertainty.calibration_classification import reliability_diagram
 
 class NeighborhoodUncertaintyClassifier:
 
-    k = 10
-
-    def __init__(self, model, xtrain, ytrain, xtest, ytest, x=None, path_uncertainty_model=None):
+    def __init__(self, model, xtrain, ytrain, xtest, ytest, x=None, path_uncertainty_model=None, k=10):
         """
         :param x: images for which the uncertainty should be estimated
         :param y: labels of these images if known (for evaluation)
         """
+        self.k = k
         self.model = model
         self.train_lbls = tf.argmax(ytrain, axis=-1)
         self.xtrain = xtrain
@@ -46,7 +45,7 @@ class NeighborhoodUncertaintyClassifier:
 
     def __get_inputs_uncertainty_model(self, out, img_batch, train_data: bool):
         ypred = tf.argmax(out, axis=-1)
-        ypred = tf.reshape(tf.repeat(ypred, 10, axis=0), (-1, 10))
+        ypred = tf.reshape(tf.repeat(ypred, self.k, axis=0), (-1, self.k))
         spred = tf.math.reduce_max(out, axis=-1)
         r = self.model_without_last_layer.predict(img_batch, verbose=0)
         r = tf.repeat(r, len(self.A), axis=0)
