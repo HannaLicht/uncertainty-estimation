@@ -7,7 +7,7 @@ from uncertainty.calibration_classification import reliability_diagram
 
 class NeighborhoodUncertaintyClassifier:
 
-    def __init__(self, model, xtrain, ytrain, xtest, ytest, x=None, path_uncertainty_model=None, k=10):
+    def __init__(self, model, xtrain, ytrain, xval, yval, x, path_uncertainty_model=None, k=10):
         """
         :param x: images for which the uncertainty should be estimated
         :param y: labels of these images if known (for evaluation)
@@ -16,10 +16,9 @@ class NeighborhoodUncertaintyClassifier:
         self.model = model
         self.train_lbls = tf.argmax(ytrain, axis=-1)
         self.xtrain = xtrain
-        self.x = xtest if x is None else x
-        self.y = tf.argmax(ytest, axis=-1) if x is None else None
+        self.x = x
         self.dataset_train = tf.data.Dataset.from_tensor_slices((xtrain, self.train_lbls)).batch(100)
-        self.dataset_test = tf.data.Dataset.from_tensor_slices((xtest, tf.argmax(ytest, axis=-1))).batch(100)
+        self.dataset_val = tf.data.Dataset.from_tensor_slices((xval, tf.argmax(yval, axis=-1))).batch(100)
         output = self.model.layers[-2].output
         self.model_without_last_layer = tf.keras.Model(inputs=self.model.input, outputs=output)
         self.model_without_last_layer.compile()
@@ -68,7 +67,7 @@ class NeighborhoodUncertaintyClassifier:
     def __get_data_for_uncertainty_model(self, train: bool):
         x_uncertainty = []
         y_uncertainty = []
-        dataset = self.dataset_train if train else self.dataset_test
+        dataset = self.dataset_train if train else self.dataset_val
 
         for _, (img_batch, lbl_batch) in zip(tqdm.tqdm(range(len(dataset))), dataset):
             out = self.model.predict(img_batch, verbose=0)
@@ -85,23 +84,23 @@ class NeighborhoodUncertaintyClassifier:
 
         # prepare datasets for uncertainty model
         xtrain_uncertainty, ytrain_uncertainty = self.__get_data_for_uncertainty_model(train=True)
-        xtest_uncertainty, ytest_uncertainty = self.__get_data_for_uncertainty_model(train=False)
+        xval_uncertainty, yval_uncertainty = self.__get_data_for_uncertainty_model(train=False)
 
         early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=20, restore_best_weights=True)
         rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
         self.uncertainty_model.fit(xtrain_uncertainty, ytrain_uncertainty,
-                                   validation_data=(xtest_uncertainty, ytest_uncertainty),
+                                   validation_data=(xval_uncertainty, yval_uncertainty),
                                    callbacks=[early_stop, rlrop],
                                    epochs=1000)
         if path_uncertainty_model is not None:
             self.uncertainty_model.save_weights(path_uncertainty_model)
 
-        loss, acc = self.uncertainty_model.evaluate(xtest_uncertainty, ytest_uncertainty, verbose=2)
+        loss, acc = self.uncertainty_model.evaluate(xval_uncertainty, yval_uncertainty, verbose=2)
         print("Uncertainty model, accuracy: {:5.2f}%".format(100 * acc))
 
-    def predict_certainty(self, test_img_batch):
-        out = self.model.predict(test_img_batch, verbose=0)
-        inputs = self.__get_inputs_uncertainty_model(out, test_img_batch, False)
+    def predict_certainty(self, val_img_batch):
+        out = self.model.predict(val_img_batch, verbose=0)
+        inputs = self.__get_inputs_uncertainty_model(out, val_img_batch, False)
         u = self.uncertainty_model.predict(inputs, verbose=0)
         return u
 
@@ -112,24 +111,24 @@ class NeighborhoodUncertaintyClassifier:
             certainties.append(self.predict_certainty(img_batch))
         return tf.reshape(certainties, (len(self.x))).numpy()
 
-    def certainty_score(self):
+    def certainty_score(self, lbls):
         pred_y = tf.math.argmax(self.model.predict(self.x), axis=-1)
-        correct = (pred_y == self.y)
+        correct = (pred_y == lbls)
         pred_true, pred_false = [], []
         for i in range(len(self.certainties)):
             pred_true.append(self.certainties[i]) if correct[i] else pred_false.append(self.certainties[i])
         score = len(pred_false)*tf.math.reduce_sum(pred_true)/(len(pred_true)*tf.math.reduce_sum(pred_false))
         return score.numpy()
 
-    def plot_diagrams(self):
+    def plot_diagrams(self, lbls):
         out = self.model.predict(self.x)
         pred_y = tf.math.argmax(out, axis=-1)
-        correct = (pred_y == self.y)
+        correct = (pred_y == lbls)
 
         plt.figure(figsize=(10, 5))
         # reliability diagrams
         plt.subplot(1, 2, 1)
-        reliability_diagram(self.y, out, self.certainties)
+        reliability_diagram(lbls, out, self.certainties)
 
         pred_true, pred_false = [], []
         for i in range(len(correct)):

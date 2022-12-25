@@ -1,11 +1,11 @@
+import os
 import re
 import tensorflow as tf
 from keras.applications import efficientnet
 import tensorflow_datasets as tfds
 import tensorflow_probability as tfp
-from matplotlib import pyplot as plt
-
 tfd = tfp.distributions
+
 
 translate = {
     0: 0,
@@ -85,7 +85,7 @@ def CNN(shape=(32, 32, 3), classes=100):
       x = tf.keras.layers.Dense(10, activation='softmax')(x)
     model = tf.keras.Model(inputs=x_input, outputs=x)
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.00005)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
     model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
@@ -102,18 +102,27 @@ def get_dropout_rate(model):
     return dropout
 
 
-def get_train_and_test_data(data):
+# preprocess function
+def resize_with_crop_effnet(image, label):
+    i = image
+    i = tf.cast(i, tf.float32)
+    i = tf.image.resize_with_crop_or_pad(i, 300, 300)
+    i = efficientnet.preprocess_input(i)
+    return i, label
+
+
+def get_train_and_test_data(data, validation_test_split=False):
     if data == "mnist":
         (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
         X_train = X_train.reshape(-1, 28, 28, 1) / 255.0
         X_test = X_test.reshape(-1, 28, 28, 1) / 255.0
-        return X_train, y_train, X_test, y_test, 10
+        classes = 10
 
     elif data == "fashion_mnist":
         (X_train, y_train), (X_test, y_test) = tf.keras.datasets.fashion_mnist.load_data()
         X_train = X_train.reshape(-1, 28, 28, 1) / 255.0
         X_test = X_test.reshape(-1, 28, 28, 1) / 255.0
-        return X_train, y_train, X_test, y_test, 10
+        classes = 10
 
     elif data == "cifar100":
         (X_train, y_train), (X_test, y_test) = tf.keras.datasets.cifar100.load_data()
@@ -121,7 +130,7 @@ def get_train_and_test_data(data):
         X_test = X_test.reshape(-1, 32, 32, 3) / 255.0
         y_train = tf.keras.utils.to_categorical(y_train.reshape((-1)), 100)
         y_test = tf.keras.utils.to_categorical(y_test.reshape((-1)), 100)
-        return X_train, y_train, X_test, y_test, 100
+        classes = 100
 
     elif data == "cifar10":
         (X_train, y_train), (X_test, y_test) = tf.keras.datasets.cifar10.load_data()
@@ -129,7 +138,7 @@ def get_train_and_test_data(data):
         X_test = X_test.reshape(-1, 32, 32, 3) / 255.0
         y_train = tf.keras.utils.to_categorical(y_train.reshape((-1)), 10)
         y_test = tf.keras.utils.to_categorical(y_test.reshape((-1)), 10)
-        return X_train, y_train, X_test, y_test, 10
+        classes = 10
 
     elif data == "pets":
         # oxford-IIIT Pets dataset
@@ -147,42 +156,77 @@ def get_train_and_test_data(data):
             return input_image, input_mask
 
         train_images = dataset['train'].map(load_image, num_parallel_calls=tf.data.AUTOTUNE)
-        xtrain, ytrain = list(zip(*train_images))
+        X_train, y_train = list(zip(*train_images))
         test_images = dataset['test'].map(load_image, num_parallel_calls=tf.data.AUTOTUNE)
-        xtest, ytest = list(zip(*test_images))
-        return xtrain, ytrain, xtest, ytest, 3
+        X_test, y_test = list(zip(*test_images))
+        classes = 3
+
+    elif data == "imagenet":
+        # https://medium.com/analytics-vidhya/how-to-train-a-neural-network-classifier-on-imagenet-using-tensorflow-2-ede0ea3a35ff
+        # Get imagenet labels
+        labels_path = tf.keras.utils.get_file('ImageNetLabels.txt',
+                                              'https://storage.googleapis.com/download.tensorflow.org/data/ImageNetLabels.txt')
+        imagenet_labels = list(open(labels_path).read().splitlines())
+
+        # Set data_dir to a read-only storage of .tar files
+        # Set write_dir to a w/r storage
+        data_dir = '../ImageNet-ILSVRC2012/tars'
+        write_dir = '../ImageNet-ILSVRC2012/data'
+
+        # Construct a tf.data.Dataset
+        download_config = tfds.download.DownloadConfig(
+            extract_dir=os.path.join(write_dir, 'extracted'),
+            manual_dir=data_dir
+        )
+        download_and_prepare_kwargs = {
+            'download_dir': os.path.join(write_dir, 'downloaded'),
+            'download_config': download_config,
+        }
+        ds_train, ds_val = tfds.load('imagenet2012_subset/10pct',
+                                     data_dir=os.path.join(write_dir, 'data'),
+                                     split=['train', 'validation'],
+                                     shuffle_files=False,
+                                     download=True,
+                                     as_supervised=True,
+                                     download_and_prepare_kwargs=download_and_prepare_kwargs
+                                     )
+        ds_test = tfds.load('imagenet_a',
+                            data_dir=os.path.join(write_dir, 'data'),
+                            split="test",
+                            shuffle_files=False,
+                            download=True,
+                            as_supervised=True,
+                            download_and_prepare_kwargs=download_and_prepare_kwargs
+                            )
+
+        train_images = ds_train.map(resize_with_crop_effnet)
+        val_images = ds_val.map(resize_with_crop_effnet)
+        test_images = ds_test.map(resize_with_crop_effnet)
+
+        X_train, y_train = list(zip(*train_images))
+        X_val, y_val = list(zip(*val_images))
+        X_test, y_test = list(zip(*test_images))
+
+        if validation_test_split:
+            return X_train, y_train, X_val, y_val, X_test, y_test, 1000
+        else:
+            return X_train, y_train, X_test, y_test, 1000
 
     else:
         raise NotImplementedError
 
+    if validation_test_split:
+        X_val, y_val = X_train[int((4./5.)*len(X_train)):], y_train[int((4./5.)*len(y_train)):]
+        X_train, y_train = X_train[:int((4./5.)*len(X_train))], y_train[:int((4./5.)*len(y_train))]
+        return X_train, y_train, X_val, y_val, X_test, y_test, classes
 
-def get_train_data(data):
-    """
-    :param data:
-    :return: train images, train labels, number of classes
-    """
-
-    if data == "mnist":
-        (X_train, y_train), _ = tf.keras.datasets.mnist.load_data()
-        X_train = X_train.reshape(-1, 28, 28, 1) / 255.0
-        return X_train, y_train, 10
-    elif data == "fashion_mnist":
-        (X_train, y_train), _ = tf.keras.datasets.fashion_mnist.load_data()
-        X_train = X_train.reshape(-1, 28, 28, 1) / 255.0
-        return X_train, y_train, 10
-    elif data == "cifar10":
-        (X_train, y_train), _ = tf.keras.datasets.cifar10.load_data()
-        X_train = X_train.reshape(-1, 32, 32, 3) / 255.0
-        return X_train, y_train.reshape((-1)), 10
     else:
-        print("dataset not available")
-        return None
+        return X_train, y_train, X_test, y_test, classes
 
-
+'''
 def get_test_data(data):
     """
-    :param data:
-    :param num_data:
+    :param data: name of dataset
     :return: test images, test labels, number of classes
     """
     if data == "mnist":
@@ -223,12 +267,4 @@ def get_test_data(data):
     else:
         print("dataset not available")
         return None
-
-
-# preprocess functions:
-def resize_with_crop_effnet(image, label):
-    i = image
-    i = tf.cast(i, tf.float32)
-    i = tf.image.resize_with_crop_or_pad(i, 300, 300)
-    i = efficientnet.preprocess_input(i)
-    return i, label
+'''

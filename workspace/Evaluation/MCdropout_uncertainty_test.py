@@ -1,73 +1,61 @@
 import re
-
 import keras.applications.efficientnet as efn
-from matplotlib import pyplot as plt
-
-from functions import create_simple_model, get_test_data, CNN
+import sys
+sys.path.append("/home/urz/hlichten")
+from functions import CNN, get_train_and_test_data
 from uncertainty.MC_Dropout import MCDropoutEstimator
 import tensorflow as tf
 
 T = 50
-MODEL = "CNN_cifar10"
+MODEL = "effnet"
 CHECKPOINT_PATH = "../models/classification/" + MODEL + "/cp.ckpt"
 
-if MODEL == "simple_seq_model_mnist":
-    x, y, num_classes = get_test_data("mnist")
-    model = create_simple_model()
-    model.load_weights(CHECKPOINT_PATH)
-    estimator = MCDropoutEstimator(model, x, num_classes, T)
-elif MODEL == "simple_seq_model_fashion_mnist":
-    x, y, num_classes = get_test_data("fashion_mnist")
-    model = create_simple_model()
-    model.load_weights(CHECKPOINT_PATH)
-    estimator = MCDropoutEstimator(model, x, num_classes, T)
-elif MODEL == "CNN_cifar100":
-    x, y, num_classes = get_test_data("cifar100")
+if MODEL == "CNN_cifar100":
+    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("cifar100")
     model = CNN(classes=100)
     model.load_weights(CHECKPOINT_PATH)
-    estimator = MCDropoutEstimator(model, x, num_classes, T)
+    estimator = MCDropoutEstimator(model, x_test, num_classes, T, xval=x_val, yval=y_val)
 elif re.match("CNN_cifar10.*", MODEL):
-    x, y, num_classes = get_test_data("cifar10")
+    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("cifar10", validation_test_split=True)
     model = CNN(classes=10)
     model.load_weights(CHECKPOINT_PATH)
-    estimator = MCDropoutEstimator(model, x, num_classes, T)
-elif MODEL == "effnetb0":
-    x, y, num_classes = get_test_data("imagenette")
-    eff = efn.EfficientNetB0(weights='imagenet')
-    estimator = MCDropoutEstimator(eff, x, num_classes, T)
+    estimator = MCDropoutEstimator(model, x_test, num_classes, T, xval=x_val, yval=y_val)
+elif MODEL == "effnet":
+    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("imagenet", validation_test_split=True)
+    eff = efn.EfficientNetB3(weights='imagenet')
+    estimator = MCDropoutEstimator(eff, x_test, num_classes, T, xval=x_val, yval=y_val)
 else:
     raise NotImplementedError
 
 pred = estimator.get_ensemble_prediction()
 
-print("Simple model accuracy:" + str(estimator.get_simple_model_accuracy(y)))
-print("Ensemble accuracy: " + str(estimator.get_ensemble_accuracy(y)) + "\n")
+print("Simple model accuracy:" + str(estimator.get_simple_model_accuracy(y_test)))
+print("Ensemble accuracy: " + str(estimator.get_ensemble_accuracy(y_test)) + "\n")
 
-y = tf.argmax(y, axis=-1).numpy()
+y = tf.argmax(y_test, axis=-1).numpy()
 
 print("UNCERTAINTY BY SHANNON ENTROPY")
-certainties = estimator.bounded_certainties_shannon_entropy()
-index = sorted(range(len(certainties)), key=certainties.__getitem__, reverse=False)
+uncertainties = estimator.uncertainties_shannon_entropy()
+index = sorted(range(len(uncertainties)), key=uncertainties.__getitem__, reverse=False)
 preds = [pred[i] for i in index]
 lbls = [y[i] for i in index]
-certs = [certainties[i] for i in index]
+uncerts = [uncertainties[i] for i in index]
 print("targets:     " + str(lbls[:10]) + " ... " + str(lbls[-10:]))
 print("predictions: " + str(preds[:10]) + " ... " + str(preds[-10:]))
-print("certainties: " + str(certs[:10]) + " ... " + str(certs[-10:]) + "\n")
+print("uncertainties: " + str(uncerts[:10]) + " ... " + str(uncerts[-10:]) + "\n")
 
 
 print("UNCERTAINTY BY MUTUAL INFORMATION")
-certainties = estimator.bounded_certainties_mutual_information()
-index = sorted(range(len(certainties)), key=certainties.__getitem__, reverse=False)
-certs = [certainties[i] for i in index]
+uncertainties = estimator.uncertainties_mutual_information()
+index = sorted(range(len(uncertainties)), key=uncertainties.__getitem__, reverse=False)
+uncerts = [uncertainties[i] for i in index]
 preds = [pred[i] for i in index]
 lbls = [y[i] for i in index]
 print("targets:     " + str(lbls[:10]) + " ... " + str(lbls[-10:]))
 print("predictions: " + str(preds[:10]) + " ... " + str(preds[-10:]))
-print("certainties: " + str(certs[:10]) + " ... " + str(certs[-10:]) + "\n")
+print("uncertainties: " + str(uncerts[:10]) + " ... " + str(uncerts[-10:]) + "\n")
 
 scores = estimator.certainty_scores(y)
 print("score SE: " + str(scores[0]) + "     score MI: " + str(scores[1]))
 
 estimator.plot_diagrams(y)
-plt.show()

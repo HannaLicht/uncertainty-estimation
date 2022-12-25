@@ -5,19 +5,29 @@ from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from functions import CNN, get_train_and_test_data
 
 CONTINUE = False
-DATASET = "cifar100"
+DATASET = "cifar10"
+NUM_DATA = None
 shape = (32, 32, 3)
 
-train_images, train_labels, test_images, test_labels, classes = get_train_and_test_data(DATASET)
+train_images, train_labels, val_images, val_labels, test_images, test_labels, classes = \
+    get_train_and_test_data(DATASET, validation_test_split=True)
+
+if NUM_DATA is not None:
+    assert NUM_DATA <= len(train_images)
+    train_images = train_images[:NUM_DATA]
+    train_labels = train_labels[:NUM_DATA]
 
 # Create a basic model instance
 model = CNN(shape, classes)
 model.summary()
+if DATASET == "cifar10":
+    model.load_weights("CNN_cifar100/cp.ckpt")
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-checkpoint_path = "CNN_" + DATASET + "/cp.ckpt"
+checkpoint_path = "CNN_" + DATASET + ("" if NUM_DATA is None else "_" + str(NUM_DATA)) + "/cp.ckpt"
 
 # early stopping to monitor the validation loss and avoid overfitting
-early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=10, restore_best_weights=True)
+early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=15, restore_best_weights=True)
 # reducing learning rate on plateau
 rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr= 1e-6, verbose=1)
 # Create a callback that saves the model's weights
@@ -31,10 +41,10 @@ if CONTINUE:
 # Train the model with the new callback
 model.fit(train_images,
           train_labels,
-          batch_size=128,
+          batch_size=32,
           shuffle=True,
           epochs=1000,
-          validation_data=(test_images, test_labels),
+          validation_data=(val_images, val_labels),
           callbacks=[cp_callback, early_stop, rlrop])  # Pass callback to training
 
 # Create a basic model instance

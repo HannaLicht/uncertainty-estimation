@@ -3,32 +3,32 @@ Performance NUC per k:
 CNN cifar10 (first 100)
 
 K       | 5     | 10    | 25    | 50    | 100
-AUROC   | 0.546 | 0.548 | 0.421 | 0.505 | 0.564
-AUPR    | 0.324 | 0.335 | 0.251 | 0.299 | 0.351
+AUROC   | 0.735 | 0.747 | 0.756 | 0.762 | 0.766
+AUPR    | 0.584 | 0.602 | 0.609 | 0.623 | 0.623
 
 CNN cifar10 (first 1000)
 
 K       | 5     | 10    | 25    | 50    | 100
-AUROC   | 0.660 | 0.685 | 0.683 | 0.679 | 0.667
-AUPR    | 0.659 | 0.691 | 0.689 | 0.688 | 0.679
+AUROC   | 0.739 | 0.745 | 0.750 | 0.751 | 0.750
+AUPR    | 0.756 | 0.764 | 0.768 | 0.770 | 0.769
 
 CNN cifar10 (first 10000)
 
 K       | 5     | 10    | 25    | 50    | 100
-AUROC   | 0.735 | 0.776 | 0.746 | 0.762 | 0.769
-AUPR    | 0.835 | 0.871 | 0.842 | 0.853 | 0.860
+AUROC   | 0.780 | 0.778 | 0.773 | 0.772 | 0.769
+AUPR    | 0.867 | 0.863 | 0.861 | 0.863 | 0.862
 
 CNN cifar10
 
 K       | 5     | 10    | 25    | 50    | 100
-AUROC   | 0.841 | 0.841 | 0.835 | 0.817 | 0.834
-AUPR    | 0.942 | 0.944 | 0.938 | 0.924 | 0.935
+AUROC   | 0.825 | 0.823 | 0.808 | 0.804 | 0.805
+AUPR    | 0.926 | 0.926 | 0.918 | 0.917 | 0.918
 
 CNN cifar100
 
 K       | 5     | 10    | 25    | 50    | 100
-AUROC   | 0.820 | 0.819 | 0.814 | 0.807 | 0.800
-AUPR    | 0.786 | 0.786 | 0.779 | 0.768 | 0.762
+AUROC   | 0.804 | 0.803 | 0.800 | 0.787 | 0.769
+AUPR    | 0.769 | 0.767 | 0.764 | 0.749 | 0.731
 
 EfficientNet ImageNet
 
@@ -40,97 +40,95 @@ AUPR    | |
 
 CNN trained on 100 data of cifar10:
 
-accuracy on traindata (first 100) = 0.8400
-accuracy on testdata = 0.2881
+accuracy on traindata (first 100) = 0.8000
+accuracy on testdata = 0.3276
 
                             | AUROC | AUPR
-Softmax                     | 0.629 | 0.433
-MC Dropout SE               | 0.630 | 0.442
-MC Dropout MI               | 0.562 | 0.378
-Bagging SE                  | 0.616 | 0.435
-Bagging MI                  | 0.504 | 0.324
-Rand. Initial. & Shuffle SE | 0.632 | 0.444
-Rand. Initial. & Shuffle MI | 0.529 | 0.368
-Data Augmentation SE        | 0.635 | 0.482
-Data Augmentation MI        | 0.521 | 0.382
-Neighborhood Uncert         | 0.548 | 0.335      -> too few data to train the uncertainty classifier
+Softmax                     | 0.658 | 0.496
+MC Dropout SE               | 0.659 | 0.511
+MC Dropout MI               | 0.558 | 0.395
+Bagging SE                  | 0.670 | 0.483
+Bagging MI                  | 0.353 | 0.248
+Rand. Initial. & Shuffle SE | 0.695 | 0.529
+Rand. Initial. & Shuffle MI | 0.320 | 0.244
+Data Augmentation SE        | 0.672 | 0.487
+Data Augmentation MI        | 0.337 | 0.234
+Neighborhood Uncert         | 0.747 | 0.602
 
 
 
 CNN trained on 1000 data of cifar10:
 
-accuracy on traindata (first 1000) = 0.7410
-accuracy on testdata = 0.4977
+accuracy on traindata (first 1000) = 0.8470
+accuracy on testdata = 0.5159
 
-                            | AUROC | AUPR  | max. uncertainty
-Softmax                     | 0.707 | 0.718 | 2.227
-MC Dropout SE               | 0.699 | 0.689 | 2.230
-MC Dropout MI               | 0.624 | 0.610 | 0.514
-Bagging SE                  | 0.719 | 0.742 | 2.225
-Bagging MI                  | 0.655 | 0.688 | 0.953
-Rand. Initial. & Shuffle SE | 0.715 | 0.757 |
-Rand. Initial. & Shuffle MI | 0.647 | 0.703 |
-Data Augmentation SE        | 0.731 | 0.786 | 2.211
-Data Augmentation MI        | 0.666 | 0.728 | 0.524
-Neighborhood Uncert         | 0.685 | 0.691 |               -> too few data to train the uncertainty classifier
+                            | AUROC | AUPR
+Softmax                     | 0.721 | 0.741
+MC Dropout SE               | 0.711 | 0.741
+MC Dropout MI               | 0.662 | 0.697
+Bagging SE                  | 0.711 | 0.732
+Bagging MI                  | 0.633 | 0.667
+Rand. Initial. & Shuffle SE | 0.717 | 0.751
+Rand. Initial. & Shuffle MI | 0.624 | 0.674
+Data Augmentation SE        | 0.730 | 0.776
+Data Augmentation MI        | 0.668 | 0.731
+Neighborhood Uncert         | 0.737 | 0.757
 
 
 
 CNN trained on 10000 data of cifar10:
 
-accuracy on traindata (first 10000) = 0.8969                -> imbalanced and not enough data for NUC :(
-accuracy on testdata = 0.6686
+accuracy on traindata (first 10000) = 0.833
+accuracy on testdata = 0.6443
 
-                            | AUROC | AUPR  | max. uncertainty
-Softmax                     | 0.785 | 0.886 | 2.097
-MC Dropout SE               | 0.777 | 0.882 | 2.151
-MC Dropout MI               | 0.732 | 0.858 | 0.749
-Bagging SE                  | 0.780 | 0.883 | 2.168
-Bagging MI                  | 0.732 | 0.857 | 0.837
-Rand. Initial. & Shuffle SE | 0.789 | 0.897 | 2.193
-Rand. Initial. & Shuffle MI | 0.744 | 0.875 | 0.561
-Data Augmentation SE        | 0.785 | 0.900 | 2.193
-Data Augmentation MI        | 0.726 | 0.869 | 0.468
-Neighborhood Uncert         | 0.776 | 0.871 |
-
+                            | AUROC | AUPR  
+Softmax                     | 0.774 | 0.867
+MC Dropout SE               | 0.763 | 0.862
+MC Dropout MI               | 0.719 | 0.837
+Bagging SE                  | 0.759 | 0.851
+Bagging MI                  | 0.703 | 0.814
+Rand. Initial. & Shuffle SE | 0.786 | 0.886
+Rand. Initial. & Shuffle MI | 0.732 | 0.858
+Data Augmentation SE        | 0.782 | 0.888
+Data Augmentation MI        | 0.728 | 0.857
+Neighborhood Uncert         | 0.778 | 0.863
 
 
 CNN trained on whole cifar10:
 
-accuracy on traindata = 0.8939                              -> imbalanced data for NUC :(
-accuracy on testdata = 0.7601
+accuracy on traindata = 0.8737
+accuracy on testdata = 0.7295
 
-                            | AUROC | AUPR  | max. uncertainty
-Softmax                     | 0.841 | 0.946 | 2.136
-MC Dropout SE               | 0.829 | 0.943 | 2.105
-MC Dropout MI               | 0.787 | 0.927 | 0.748
-Bagging SE                  | 0.827 | 0.941 | 2.135
-Bagging MI                  | 0.790 | 0.928 | 0.603
-Rand. Initial. & Shuffle SE | 0.837 | 0.948 | 2.196
-Rand. Initial. & Shuffle MI | 0.791 | 0.933 | 0.563
-Data Augmentation SE        | 0.825 | 0.943 | 2.152
-Data Augmentation MI        | 0.776 | 0.925 | 0.363
-Neighborhood Uncert         | 0.841 | 0.944 |
+                            | AUROC | AUPR
+Softmax                     | 0.822 | 0.929
+MC Dropout SE               | 0.807 | 0.926
+MC Dropout MI               | 0.765 | 0.909
+Bagging SE                  | 0.806 | 0.919
+Bagging MI                  | 0.757 | 0.898
+Rand. Initial. & Shuffle SE | 0.813 | 0.928
+Rand. Initial. & Shuffle MI | 0.763 | 0.908
+Data Augmentation SE        | 0.808 | 0.924
+Data Augmentation MI        | 0.750 | 0.899
+Neighborhood Uncert         | 0.823 | 0.926
 
 
 
 CNN trained on cifar100:
 
-accuracy on traindata = 0.4761   -> NUC performs well due to balanced correctness of data:
-                                    Classifier trained to predict a wrong decision for half of the data, not only for 10%
-accuracy on testdata = 0.3981
+accuracy on traindata = 0.6116
+accuracy on testdata = 0.4036
 
                             | AUROC | AUPR
-Softmax                     | 0.772 | 0.727
-MC Dropout SE               | 0.756 | 0.714
-MC Dropout MI               | 0.656 | 0.616
-Bagging SE                  | 0.775 | 0.765
-Bagging MI                  | 0.705 | 0.706
-Rand. Initial. & Shuffle SE | 0.748 | 0.645
-Rand. Initial. & Shuffle MI | 0.645 | 0.583
-Data Augmentation SE        | 0.777 | 0.769
-Data Augmentation MI        | 0.680 | 0.684
-Neighborhood Uncert         | 0.819 | 0.786
+Softmax                     | 0.785 | 0.749
+MC Dropout SE               | 0.774 | 0.741
+MC Dropout MI               | 0.683 | 0.659
+Bagging SE                  | 0.775 | 0.749
+Bagging MI                  | 0.698 | 0.681
+Rand. Initial. & Shuffle SE | 0.785 | 0.779
+Rand. Initial. & Shuffle MI | 0.712 | 0.715
+Data Augmentation SE        | 0.783 | 0.774
+Data Augmentation MI        | 0.692 | 0.693
+Neighborhood Uncert         | 0.803 | 0.767
 
 
 

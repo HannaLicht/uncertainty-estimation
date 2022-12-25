@@ -3,6 +3,8 @@
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import tqdm
+from uncertainty.calibration_classification import get_normalized_certainties
+
 from uncertainty.calibration_classification import reliability_diagram, uncertainty_diagram
 import re
 import tensorflow_probability as tfp
@@ -12,9 +14,11 @@ tfd = tfp.distributions
 class SamplingBasedEstimator:
 
     predictions = []
-    eval_predictions = []
+    val_predictions = []
     X = []
+    xval, yval = None, None
     p_ens = []
+    val_p_ens = None
     num_classes = None
     estimator_name = ""
 
@@ -36,26 +40,35 @@ class SamplingBasedEstimator:
     def get_ensemble_prediction(self):
         return tf.argmax(self.p_ens, axis=-1).numpy()
 
-    def uncertainties_shannon_entropy(self):
+    def uncertainties_shannon_entropy(self, val=False):
+        if val:
+            return tfd.Categorical(probs=self.val_p_ens).entropy().numpy()
         return tfd.Categorical(probs=self.p_ens).entropy().numpy()
 
-    def uncertainties_mutual_information(self):
-        h = tfd.Categorical(probs=self.p_ens).entropy()
+    def uncertainties_mutual_information(self, val=False):
+        if val:
+            assert self.val_p_ens is not None
+            ens = self.val_p_ens
+            preds = self.val_predictions
+        else:
+            ens = self.p_ens
+            preds = self.predictions
+        h = tfd.Categorical(probs=ens).entropy()
         mi = 0
-        for prediction in self.predictions:
+        for prediction in preds:
             mi = mi - tfd.Categorical(probs=prediction).entropy()
-        mi = mi / len(self.predictions) + h
-        return mi
+        mi = mi / len(preds) + h
+        return mi.numpy()
 
-    def bounded_certainties_shannon_entropy(self):
-        h = tfd.Categorical(probs=self.p_ens).entropy()
-        h = h / -tf.math.log(1/self.num_classes)
-        return 1-h.numpy()
+    def normalized_certainties_shannon_entropy(self):
+        h_val = self.uncertainties_shannon_entropy(val=True)
+        h_test = self.uncertainties_shannon_entropy()
+        return get_normalized_certainties(self.val_p_ens, self.yval, h_val, h_test)
 
-    def bounded_certainties_mutual_information(self):
-        mi = self.uncertainties_mutual_information()
-        mi = mi / -tf.math.log(1/self.num_classes)
-        return 1-mi.numpy()
+    def normalized_certainties_mutual_information(self):
+        mi_val = self.uncertainties_mutual_information(val=True)
+        mi_test = self.uncertainties_mutual_information()
+        return get_normalized_certainties(self.val_p_ens, self.yval, mi_val, mi_test)
 
     def certainty_scores(self, lbls):
         pred_y = tf.math.argmax(self.p_ens, axis=-1)
@@ -71,23 +84,32 @@ class SamplingBasedEstimator:
         return scores
 
     # only works for classification tasks & labels must be known
-    def plot_diagrams(self, lbls):
-        pred_y = tf.math.argmax(self.p_ens, axis=-1)
-        correct = (pred_y == lbls)
+    def plot_diagrams(self, test_lbls):
+        assert self.xval is not None
+
+        pred_y_test = tf.math.argmax(self.p_ens, axis=-1)
+        correct_test = (pred_y_test == test_lbls)
         plt.figure(figsize=(16, 10))
-        cert_se = self.bounded_certainties_shannon_entropy()
-        cert_mi = self.bounded_certainties_mutual_information()
+
+        h = self.uncertainties_shannon_entropy()
+        h = h / -tf.math.log(1/self.num_classes)
+        cert_se = 1-h.numpy()
+
+        mi = self.uncertainties_mutual_information()
+        mi = mi / -tf.math.log(1/self.num_classes)
+        cert_mi = 1-mi.numpy()
 
         # calibration diagrams
         plt.subplot(2, 3, 1)
-        reliability_diagram(lbls, self.p_ens, cert_se, method="Shannon Entropy")
-        reliability_diagram(lbls, self.p_ens, cert_mi, method="Mutual Information")
+        reliability_diagram(test_lbls, self.p_ens, cert_se, method="Shannon Entropy")
+        reliability_diagram(test_lbls, self.p_ens, cert_mi, method="Mutual Information",
+                            label_perfectly_calibrated=False)
 
         pred_true_se, pred_false_se, pred_true_mi, pred_false_mi = [], [], [], []
         uncert_se = self.uncertainties_shannon_entropy()
         uncert_mi = self.uncertainties_mutual_information()
-        for i in range(len(correct)):
-            if correct[i]:
+        for i in range(len(correct_test)):
+            if correct_test[i]:
                 pred_true_se.append(uncert_se[i])
                 pred_true_mi.append(uncert_mi[i])
             else:
@@ -114,9 +136,19 @@ class SamplingBasedEstimator:
         plt.legend(loc="upper left")
 
         plt.subplot(2, 3, 5)
-        uncertainty_diagram(lbls, self.p_ens, uncert_se, method="Shannon Entropy")
+        uncertainty_diagram(test_lbls, self.p_ens, uncert_se, method="Shannon Entropy", label="Testdaten")
         plt.subplot(2, 3, 6)
-        uncertainty_diagram(lbls, self.p_ens, uncert_mi, method="Mutual Information")
+        uncertainty_diagram(test_lbls, self.p_ens, uncert_mi, method="Mutual Information", label="Testdaten")
+
+        uncert_se = self.uncertainties_shannon_entropy(val=True)
+        uncert_mi = self.uncertainties_mutual_information(val=True)
+
+        plt.subplot(2, 3, 5)
+        uncertainty_diagram(tf.argmax(self.yval, axis=-1), self.val_p_ens, uncert_se, method="Shannon Entropy",
+                            label="Validierungsdaten")
+        plt.subplot(2, 3, 6)
+        uncertainty_diagram(tf.argmax(self.yval, axis=-1), self.val_p_ens, uncert_mi, method="Mutual Information",
+                            label="Validierungsdaten")
 
         plt.suptitle(self.estimator_name, fontsize=14)
         plt.show()
@@ -168,27 +200,45 @@ def make_MC_dropout(model, layer_regex):
 
 class MCDropoutEstimator(SamplingBasedEstimator):
 
-    def __init__(self, model, X, num_classes=10, T=50):
+    def __init__(self, model, X, num_classes=10, T=50, xval=None, yval=None):
         """
         :param X: data for which the uncertainty should be estimated
         :param T: number of runs with activated dropout at inference time
         """
+        assert (xval is None) == (yval is None)
+
         self.T = T
         self.estimator_name = "MC Dropout"
+        print("test1")
         self.model = make_MC_dropout(model, layer_regex=".*drop.*")
 
         # check, if all dropout layers are MC dropout layers (training=True -> activated during inference)
-        #for layer in self.model.get_config().get("layers"):
-         #   print(layer)
+        for layer in self.model.get_config().get("layers"):
+            print(layer)
 
         self.X, self.num_classes, self.predictions = X, num_classes, []
-        X = [X[i:i + 1000] for i in range(0, len(X), 1000)]
+
+        # batch X to reduce RAM usage
+        X = tf.split(X, num_or_size_splits=100 if num_classes == 1000 else 10)
+        print("test2")
         for _ in tqdm.tqdm(range(self.T)):
             preds = self.model(X[0])[-1]
             for img_batch in X[1:]:
                 preds = tf.concat([preds, self.model(img_batch)[-1]], axis=0)
             self.predictions.append(preds)
         self.p_ens = tf.math.reduce_mean(self.predictions, axis=0)
+
+        if xval is not None:
+            self.xval, self.yval = xval, yval
+            xval = tf.split(xval, num_or_size_splits=500 if num_classes == 1000 else 10)
+            for _ in tqdm.tqdm(range(self.T)):
+                preds = self.model(xval[0])[-1]
+                for img_batch in xval[1:]:
+                    preds = tf.concat([preds, self.model(img_batch)[-1]], axis=0)
+                self.val_predictions.append(preds)
+            #self.val_predictions = [self.model(xval)[-1] for _ in tqdm.tqdm(range(self.T))]
+            self.val_p_ens = tf.math.reduce_mean(self.val_predictions, axis=0)
+
 
 '''
 class SamplingBasedEstimatorImageSegmentation(SamplingBasedEstimator):

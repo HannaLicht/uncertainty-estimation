@@ -2,7 +2,6 @@ import random
 import json
 import sys
 sys.path.append("/home/urz/hlichten")
-#sys.path.append("/home/hanna/Schreibtisch/Ingenieurinformatik VW/Igenieurinformatik/BA/uncertainty-estimation/workspace")
 print(sys.path)
 
 import matplotlib.pyplot as plt
@@ -15,11 +14,11 @@ from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifie
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
-STARTDATA = 10000
+STARTDATA = 1000
 NUM_IMAGES = 1000
-RUNS = 1
-PATH_TO_PRETRAINED_CNN_10 = "models/classification/CNN_cifar10_" + str(STARTDATA) + "/cp.ckpt"
-PATH_TO_PRETRAINED_CNN_100 = "models/classification/CNN_cifar100/cp.ckpt"
+RUNS = 6
+PATH_TO_PRETRAINED_CNN_10 = "../models/classification/retrain/CNN_cifar10_" + str(STARTDATA) + "/cp.ckpt"
+PATH_TO_PRETRAINED_CNN_100 = "../models/classification/retrain/CNN_cifar100/cp.ckpt"
 
 
 times_images_added = 10 if STARTDATA == 10000 else 9
@@ -104,21 +103,20 @@ def retrain_with_ensemble(ensemble, metric):
 
         with open('results_retrain.json') as json_file:
             data = json.load(json_file)
-        print(data)
 
         for i in range(times_images_added):
             uncertainty_estimator = ensemble(retrainer.X_train, retrainer.y_train, retrainer.X_left, num_classes=10,
                                              model_name="CNN_cifar10",
-                                             X_test=retrainer.X_test, y_test=retrainer.y_test)
+                                             X_val=retrainer.X_test, y_val=retrainer.y_test)
 
             if metric == "SE":
-                certainties = uncertainty_estimator.bounded_certainties_shannon_entropy()
+                certainties = -uncertainty_estimator.uncertainties_shannon_entropy()
                 acc, model = retrainer.retrain(model, NUM_IMAGES, certainties)
                 data[str(STARTDATA)][str(STARTDATA + (i+1)*NUM_IMAGES)]["Ensembles"][ensemble.__name__]["SE"] = \
                     data[str(STARTDATA)][str(STARTDATA+(i+1)*NUM_IMAGES)]["Ensembles"][ensemble.__name__]["SE"] + [acc]
 
             if metric == "MI":
-                certainties = uncertainty_estimator.bounded_certainties_mutual_information()
+                certainties = -uncertainty_estimator.uncertainties_mutual_information()
                 acc, model = retrainer.retrain(model, NUM_IMAGES, certainties)
                 data[str(STARTDATA)][str(STARTDATA + (i+1) * NUM_IMAGES)]["Ensembles"][ensemble.__name__]["MI"] = \
                     data[str(STARTDATA)][str(STARTDATA+(i+1)*NUM_IMAGES)]["Ensembles"][ensemble.__name__]["MI"] + [acc]
@@ -133,7 +131,6 @@ def retrain_with_MCdrop(metric):
         retrainer = RetrainingEvaluator()
         with open('results_retrain.json') as json_file:
             data = json.load(json_file)
-        print(data)
 
         for i in range(times_images_added):
             clone_model = prepare_model()
@@ -141,13 +138,13 @@ def retrain_with_MCdrop(metric):
             uncertainty_estimator = MCDropoutEstimator(clone_model, retrainer.X_left, 10, 50)
 
             if metric == "SE":
-                certainties = uncertainty_estimator.bounded_certainties_shannon_entropy()
+                certainties = -uncertainty_estimator.uncertainties_shannon_entropy()
                 acc, model = retrainer.retrain(model, NUM_IMAGES, certainties)
                 data[str(STARTDATA)][str(STARTDATA + (i + 1) * NUM_IMAGES)]["MC_drop"]["SE"] = \
                     data[str(STARTDATA)][str(STARTDATA + (i + 1) * NUM_IMAGES)]["MC_drop"]["SE"] + [acc]
 
             if metric == "MI":
-                certainties = uncertainty_estimator.bounded_certainties_mutual_information()
+                certainties = -uncertainty_estimator.uncertainties_mutual_information()
                 acc, model = retrainer.retrain(model, NUM_IMAGES, certainties)
                 data[str(STARTDATA)][str(STARTDATA + (i + 1) * NUM_IMAGES)]["MC_drop"]["MI"] = \
                     data[str(STARTDATA)][str(STARTDATA + (i + 1) * NUM_IMAGES)]["MC_drop"]["MI"] + [acc]
@@ -157,14 +154,20 @@ def retrain_with_MCdrop(metric):
 
 
 def retrain_with_nuc():
+
     for _ in range(RUNS):
         model = prepare_model()
         retrainer = RetrainingEvaluator()
+        xtrain = retrainer.X_test[:int(4*len(retrainer.X_test) / 5)]
+        ytrain = retrainer.y_test[:int(4*len(retrainer.y_test) / 5)]
+        xval = retrainer.X_test[int(4*len(retrainer.X_test) / 5):]
+        yval = retrainer.y_test[int(4*len(retrainer.y_test) / 5):]
 
         for i in range(times_images_added):
-            uncertainty_estimator = \
-                NeighborhoodUncertaintyClassifier(model, retrainer.X_train, retrainer.y_train, retrainer.X_test,
-                                                  retrainer.y_test, retrainer.X_left)
+            #uncertainty_estimator = NeighborhoodUncertaintyClassifier(model, retrainer.X_train, retrainer.y_train,
+                 #                                                  retrainer.X_test,retrainer.y_test, retrainer.X_left)
+            uncertainty_estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval,
+                                                                      retrainer.X_left)
             acc, model = retrainer.retrain(model, NUM_IMAGES, uncertainty_estimator.certainties)
 
             with open('results_retrain.json') as json_file:
@@ -220,17 +223,17 @@ prepare_model().evaluate(xtest, tf.keras.utils.to_categorical(ytest.reshape((-1)
 # check whether the classes are balanced in train dataset
 print([list(ytrain).count(i) for i in range(10)])
 
-retrain_with_ensemble(DataAugmentationEns, "MI")
-retrain_with_ensemble(RandomInitShuffleEns, "SE")
-retrain_with_ensemble(RandomInitShuffleEns, "MI")
-retrain_with_MCdrop("SE")
-retrain_with_MCdrop("MI")
 retrain_with_nuc()
-retrain_with_softmax_entropy()
-retrain_with_random_data()
-retrain_with_ensemble(BaggingEns, "SE")
-retrain_with_ensemble(BaggingEns, "MI")
-retrain_with_ensemble(DataAugmentationEns, "SE")
+#retrain_with_ensemble(DataAugmentationEns, "SE")
+#retrain_with_ensemble(DataAugmentationEns, "MI")
+#retrain_with_ensemble(RandomInitShuffleEns, "SE")
+#retrain_with_ensemble(RandomInitShuffleEns, "MI")
+#retrain_with_MCdrop("SE")
+#retrain_with_MCdrop("MI")
+#retrain_with_softmax_entropy()
+#retrain_with_random_data()
+#retrain_with_ensemble(BaggingEns, "SE")
+#retrain_with_ensemble(BaggingEns, "MI")
 
 with open('results_retrain.json') as json_file:
     data = json.load(json_file)

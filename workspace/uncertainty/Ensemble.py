@@ -10,7 +10,7 @@ import tensorflow_probability as tfp
 from models.semantic_segmentation.train_and_save_modified_UNet import unet_model
 from uncertainty.MC_Dropout import SamplingBasedEstimator
 
-ENSEMBLE_LOCATION = "models/classification/ensembles"
+ENSEMBLE_LOCATION = "../models/classification/ensembles"
 
 """
 Ensemble members have same model architecture but are trained on different data samples
@@ -21,10 +21,13 @@ class Ensemble(SamplingBasedEstimator):
 
     members = []
 
-    def __init__(self, X_train, y_train, X, num_classes=10, model_name=None, path_to_ensemble=None, X_test=None,
-                 y_test=None, optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5):
+    def __init__(self, X_train, y_train, X, num_classes, model_name, path_to_ensemble="", X_val=None, y_val=None,
+                 optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5, val=False):
 
         self.X, self.num_classes = X, num_classes
+        if val:
+            assert X_val is not None and y_val is not None
+            self.xval, self.yval = X_val, y_val
         try:
             self.members = [tf.keras.models.load_model(path_to_ensemble + "/member_" + str(i)) for i in
                             range(num_members)]
@@ -32,20 +35,20 @@ class Ensemble(SamplingBasedEstimator):
         except:
             print("Ensembe could not be found at path: " + str(path_to_ensemble))
             print("Ensemble will be trained now")
-            self.init_new_ensemble(path_to_ensemble, X_train, y_train, X_test, y_test, model_name, num_members,
+            self.init_new_ensemble(path_to_ensemble, X_train, y_train, X_val, y_val, model_name, num_members,
                                    optimizer, loss, metrics)
 
     @abstractmethod
     def prepare_data(self, X_train, y_train, num_members):
         """create ensemble based on certain approaches"""
 
-    def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_test, y_test, model_name, num_members,
+    def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_val, y_val, model_name, num_members,
                           optimizer, loss, metrics):
         if y_train[0].shape == (128, 128, 1):
             X_train = tf.reshape(X_train, (-1, 128, 128, 3))
-            X_test = tf.reshape(X_test, (-1, 128, 128, 3))
+            X_val = tf.reshape(X_val, (-1, 128, 128, 3))
             y_train = tf.reshape(y_train, (-1, 128, 128, 1))
-            y_test = tf.reshape(y_test, (-1, 128, 128, 1))
+            y_val = tf.reshape(y_val, (-1, 128, 128, 1))
 
         train_imgs, train_lbls = self.prepare_data(X_train, y_train, num_members)
 
@@ -54,7 +57,7 @@ class Ensemble(SamplingBasedEstimator):
         elif model_name == "CNN_cifar10":
             self.members = [CNN(classes=10) for _ in range(num_members)]
             for member in self.members:
-                member.load_weights("models/classification/CNN_cifar100/cp.ckpt")
+                member.load_weights("../models/classification/CNN_cifar100/cp.ckpt")
                 member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
         elif model_name == "CNN_cifar100":
             self.members = [CNN(classes=100) for _ in range(num_members)]
@@ -68,9 +71,9 @@ class Ensemble(SamplingBasedEstimator):
 
         # train ensemble members
         for index, (model, imgs, lbls) in enumerate(zip(self.members, train_imgs, train_lbls)):
-            model.fit(imgs, lbls, validation_data=(X_test, y_test), epochs=1000,
+            model.fit(imgs, lbls, validation_data=(X_val, y_val), epochs=1000,
                       batch_size=128 if len(lbls) >= 1000 else 32, callbacks=[early_stop, rlrop])
-            if path_to_ensemble is not None:
+            if path_to_ensemble is not "":
                 model.save(path_to_ensemble + "/member_" + str(index))
 
         self.predict()
@@ -78,15 +81,18 @@ class Ensemble(SamplingBasedEstimator):
     def predict(self):
         self.predictions = [model.predict(self.X, batch_size=32) for model in self.members]
         self.p_ens = tf.math.reduce_mean(self.predictions, axis=0)
+        if self.xval is not None:
+            self.val_predictions = [model.predict(self.xval, batch_size=32) for model in self.members]
+            self.val_p_ens = tf.math.reduce_mean(self.val_predictions, axis=0)
 
 
 class BaggingEns(Ensemble):
 
-    def __init__(self, X_train, y_train, X, num_classes, model_name=None, path_to_ensemble=None, X_test=None,
-                 y_test=None, optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5):
+    def __init__(self, X_train, y_train, X, num_classes, model_name, path_to_ensemble="", X_val=None, y_val=None,
+                 optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5, val=False):
         self.estimator_name = "Ensemble - Bagging"
-        super().__init__(X_train, y_train, X, num_classes, model_name, path_to_ensemble, X_test, y_test,
-                         optimizer, loss, metrics, num_members)
+        super().__init__(X_train, y_train, X, num_classes, model_name, path_to_ensemble, X_val, y_val,
+                         optimizer, loss, metrics, num_members, val)
 
     def prepare_data(self, xtrain, ytrain, num_members):
         train_imgs, train_lbls = [], []
@@ -100,11 +106,11 @@ class BaggingEns(Ensemble):
 
 class RandomInitShuffleEns(Ensemble):
 
-    def __init__(self, X_train, y_train, X, num_classes, model_name=None, path_to_ensemble=None, X_test=None,
-                 y_test=None, optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5):
+    def __init__(self, X_train, y_train, X, num_classes, model_name, path_to_ensemble="", X_val=None, y_val=None,
+                 optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5, val=False):
         self.estimator_name = "Ensemble - Random Initialization & Data Shuffle"
-        super().__init__(X_train, y_train, X, num_classes, model_name, path_to_ensemble, X_test, y_test,
-                         optimizer, loss, metrics, num_members)
+        super().__init__(X_train, y_train, X, num_classes, model_name, path_to_ensemble, X_val, y_val,
+                         optimizer, loss, metrics, num_members, val)
 
     def prepare_data(self, xtrain, ytrain, num_members):
         return [xtrain for _ in range(num_members)], [ytrain for _ in range(num_members)]
@@ -112,19 +118,19 @@ class RandomInitShuffleEns(Ensemble):
 
 class DataAugmentationEns(Ensemble):
 
-    def __init__(self, X_train, y_train, X, num_classes, model_name=None, path_to_ensemble=None, X_test=None,
-                 y_test=None, optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5):
+    def __init__(self, X_train, y_train, X, num_classes, model_name, path_to_ensemble="", X_val=None, y_val=None,
+                 optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5, val=False):
         self.estimator_name = "Ensemble - Data Augmentation"
-        super().__init__(X_train, y_train, X, num_classes, model_name, path_to_ensemble, X_test, y_test,
-                         optimizer, loss, metrics, num_members)
+        super().__init__(X_train, y_train, X, num_classes, model_name, path_to_ensemble, X_val, y_val,
+                         optimizer, loss, metrics, num_members, val)
 
-    def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_test, y_test, model_name, num_members,
+    def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_val, y_val, model_name, num_members,
                           optimizer, loss, metrics):
         if y_train[0].shape == (128, 128, 1):
             X_train = tf.reshape(X_train, (-1, 128, 128, 3))
-            X_test = tf.reshape(X_test, (-1, 128, 128, 3))
+            X_val = tf.reshape(X_val, (-1, 128, 128, 3))
             y_train = tf.reshape(y_train, (-1, 128, 128, 1))
-            y_test = tf.reshape(y_test, (-1, 128, 128, 1))
+            y_val = tf.reshape(y_val, (-1, 128, 128, 1))
 
         data_generator = self.prepare_data(X_train, y_train, num_members)
 
@@ -133,7 +139,7 @@ class DataAugmentationEns(Ensemble):
         elif model_name == "CNN_cifar10":
             self.members = [CNN(classes=10) for _ in range(num_members)]
             for member in self.members:
-                member.load_weights("models/classification/CNN_cifar100/cp.ckpt")
+                member.load_weights("../models/classification/CNN_cifar100/cp.ckpt")
                 member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
         elif model_name == "CNN_cifar100":
             self.members = [CNN(classes=100) for _ in range(num_members)]
@@ -147,16 +153,14 @@ class DataAugmentationEns(Ensemble):
 
         # train ensemble members
         for index, model in enumerate(self.members):
-            model.fit(data_generator, validation_data=(X_test, y_test), epochs=1000, callbacks=[early_stop, rlrop])
-            if path_to_ensemble is None:
-                model.save(ENSEMBLE_LOCATION + "/" + self.estimator_name + "/member_" + str(index))
-            else:
+            model.fit(data_generator, validation_data=(X_val, y_val), epochs=1000, callbacks=[early_stop, rlrop])
+            if path_to_ensemble is not "":
                 model.save(path_to_ensemble + "/member_" + str(index))
 
         self.predict()
 
     def prepare_data(self, xtrain, ytrain, num_members):
-        if ytrain[0].shape == (128, 128, 1):
+        if ytrain[0].shape == (128, 128, 1):        # semantic segmentation
 
             def add_noise(img):
                 """Add random noise to an image"""

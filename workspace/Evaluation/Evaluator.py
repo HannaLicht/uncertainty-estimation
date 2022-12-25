@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import tensorflow as tf
-import statistics
+from uncertainty.calibration_classification import get_normalized_certainties
 import sys
 sys.path.append("/home/urz/hlichten")
 sys.path.append("/home/hanna/Schreibtisch/Ingenieurinformatik VW/Igenieurinformatik/BA/uncertainty-estimation/workspace")
@@ -13,22 +14,23 @@ from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifie
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
-DATA = "cifar10_1000"
+DATA = "cifar100"
 MODEL = "CNN"
-CHECKPOINT_PATH = "models/classification/" + MODEL + "_" + DATA + "/cp.ckpt"
+CHECKPOINT_PATH = "../models/classification/" + MODEL + "_" + DATA + "/cp.ckpt"
 NUM_MEMBERS = 5
+THRESHOLDS = [.5, .55, .6, .65, .7, .75, .8, .85, .9, .95]
 
 path_to_bagging_ens = ENSEMBLE_LOCATION + "/bagging/" + MODEL + "_" + DATA
 path_to_dataAug_ens = ENSEMBLE_LOCATION + "/data_augmentation/" + MODEL + "_" + DATA
 path_to_randInitShuffle_ens = ENSEMBLE_LOCATION + "/rand_initialization_shuffle/" + MODEL + "_" + DATA
-path_uncertainty_model = "models/classification/uncertainty_model/" + DATA + "/cp.ckpt"
+path_uncertainty_model = "../models/classification/uncertainty_model/" + DATA + "/cp.ckpt"
 
 
 class Evaluator:
 
-    def __init__(self, lbls: list, preds: list, certainties):
-        self.correct = (lbls == preds)
-        self.certainties = certainties
+    def __init__(self, lbls_test, preds_test, certs):
+        self.certainties = certs
+        self.correct = (lbls_test == preds_test)
 
     def auroc(self):
         m = tf.keras.metrics.AUC(curve='ROC')
@@ -104,9 +106,9 @@ class Evaluator:
         TU, TC, FU, FC = groups
         return (TU+TC)/(TU+TC+FC+FU)
 
-    def results(self, thresholds):
+    def results(self):
         accs, preci, speci, rec = [], [], [], []
-        for tr in thresholds:
+        for tr in THRESHOLDS:
             gr = self.make_groups(tr)
             accs.append(self.accuracy(gr))
             preci.append(self.precision(gr))
@@ -130,22 +132,23 @@ def optimal_certainties(lbls, preds):
 
 
 def subplot_evaluation(values, eval_metric: str, method: str):
-    quantiles = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-    #thr = THRESHOLDS
+    thr = THRESHOLDS
     while values[0] is None:
         values = values[1:]
-        quantiles = quantiles[1:]
-    plt.plot(quantiles, values, label=method)
-    plt.xlabel("Certainty limit in quantiles")
+        thr = thr[1:]
+    plt.plot(thr, values, label=method)
+    plt.xlabel("Konfidenzlimit in Prozent")
     plt.ylabel(eval_metric)
 
 
 model = CNN(classes=100 if DATA == "cifar100" else 10)
 model.load_weights(CHECKPOINT_PATH)
 
-x, y, x_test, y_test, num_classes = get_train_and_test_data("cifar10" if DATA == "cifar10_1000" or
-                                                                         DATA == "cifar10_10000" or
-                                                                         DATA == "cifar10_100" else DATA)
+x, y, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("cifar10" if DATA == "cifar10_1000" or
+                                                                                       DATA == "cifar10_10000" or
+                                                                                       DATA == "cifar10_100" else DATA,
+                                                                          validation_test_split=True)
+
 if DATA == "cifar10_1000":
     x, y = x[:1000], y[:1000]
 elif DATA == "cifar10_10000":
@@ -164,19 +167,25 @@ print("Accuracy on test dataset: ", acc)
 model_name = MODEL + "_cifar10" if DATA == "cifar10_1000" or DATA == "cifar10_10000" or DATA == "cifar10_100" \
     else MODEL + "_" + DATA
 
-MCEstimator = MCDropoutEstimator(model, x_test, num_classes, T=50)
+val = True if DATA == "cifar10" or DATA == "cifar100" else False
+MCEstimator = MCDropoutEstimator(model, x_test, num_classes, T=50,
+                                 xval=x_val if DATA == "cifar10" or DATA == "cifar100" else None,
+                                 yval=y_val if DATA == "cifar10" or DATA == "cifar100" else None)
 DAEstimator = DataAugmentationEns(x, y, x_test, num_classes, model_name=model_name,
                                   path_to_ensemble=path_to_dataAug_ens, num_members=NUM_MEMBERS,
-                                  X_test=x_test, y_test=y_test)
+                                  X_val=x_val, y_val=y_val, val=val)
 RISEstimator = RandomInitShuffleEns(x, y, x_test, num_classes, model_name=model_name,
                                     path_to_ensemble=path_to_randInitShuffle_ens, num_members=NUM_MEMBERS,
-                                    X_test=x_test, y_test=y_test)
+                                    X_val=x_val, y_val=y_val, val=val)
 BaEstimator = BaggingEns(x, y, x_test, num_classes, model_name=model_name, path_to_ensemble=path_to_bagging_ens,
-                         num_members=NUM_MEMBERS, X_test=x_test, y_test=y_test)
-NUEstimator = NeighborhoodUncertaintyClassifier(model, x, y, x_test, y_test,
+                         num_members=NUM_MEMBERS, X_val=x_val, y_val=y_val, val=val)
+NUEstimator = NeighborhoodUncertaintyClassifier(model, x_val[:int(len(x_val) / 2)], y_val[:int(len(y_val) / 2)],
+                                                x_val[int(len(x_val) / 2):], y_val[int(len(y_val) / 2):], x_test,
                                                 path_uncertainty_model=path_uncertainty_model)
-methods = ["MCdrop SE", "MCdrop MI", "Bag SE", "Bag MI", "Rand SE", "Rand MI",
-           "DataAug SE", "DataAug MI", "NUC", "Softmax"]
+methods = ["MCdrop SE", "MCdrop MI",
+           "Bag SE", "Bag MI", "Rand SE", "Rand MI",
+           "DataAug SE", "DataAug MI",
+           "NUC", "Softmax"]
 
 y_pred_drop = MCEstimator.get_ensemble_prediction()
 y_pred_bag = BaEstimator.get_ensemble_prediction()
@@ -184,11 +193,10 @@ y_pred_aug = DAEstimator.get_ensemble_prediction()
 y_pred_rand = RISEstimator.get_ensemble_prediction()
 preds = [y_pred_drop, y_pred_drop, y_pred_bag, y_pred_bag, y_pred_rand, y_pred_rand,
          y_pred_aug, y_pred_aug,
-         y_pred, y_pred]
+         y_pred,
+         y_pred]
 
-softmax_entropy = tfd.Categorical(probs=model.predict(x_test, verbose=0)).entropy().numpy()
-print("Max SE single softmax: ", tf.math.reduce_max(softmax_entropy).numpy())
-
+soft_ent_uncert_test = tfd.Categorical(probs=model.predict(x_test, verbose=0)).entropy().numpy()
 mcdr_se = MCEstimator.uncertainties_shannon_entropy()
 mcdr_mi = MCEstimator.uncertainties_mutual_information()
 bag_se = BaEstimator.uncertainties_shannon_entropy()
@@ -203,30 +211,52 @@ certainties = [1 - mcdr_se/tf.reduce_max(mcdr_se), 1 - mcdr_mi/tf.reduce_max(mcd
                1 - bag_se/tf.reduce_max(bag_se), 1 - bag_mi/tf.reduce_max(bag_mi),
                1 - rand_se/tf.reduce_max(rand_se), 1 - rand_mi/tf.reduce_max(rand_mi),
                1 - aug_se/tf.reduce_max(aug_se), 1 - aug_mi/tf.reduce_max(aug_mi),
-               NUEstimator.certainties, 1 - softmax_entropy/tf.reduce_max(softmax_entropy)
+               #NUEstimator.certainties,
+               1 - soft_ent_uncert_test/tf.reduce_max(soft_ent_uncert_test)
                ]
-#thresholds = [statistics.quantiles(cert, n=10) for cert in certainties]
-#results = [Evaluator(lbls, y_pred, certainty).results(thr) for certainty, thr in zip(certainties, thresholds)]
+
+
 print(methods)
 print([Evaluator(lbls, pred, cert).auroc() for cert, pred in zip(certainties, preds)])
 print([Evaluator(lbls, pred, cert).aupr() for cert, pred in zip(certainties, preds)])
 
-'''
-plt.figure(figsize=(10, 10))
-plt.suptitle(MODEL + " ---- " + DATA, fontsize=14)
-plt.subplot(2, 2, 1)
-for i, res in enumerate(results):
-    subplot_evaluation(res[0], "Uncertainty Accuracy", methods[i])
-plt.subplot(2, 2, 2)
-for i, res in enumerate(results):
-    subplot_evaluation(res[1], "Uncertainty Precision", methods[i])
-plt.subplot(2, 2, 3)
-for i, res in enumerate(results):
-    subplot_evaluation(res[2], "Uncertainty Specificity", methods[i])
-plt.subplot(2, 2, 4)
-for i, res in enumerate(results):
-    subplot_evaluation(res[3], "Uncertainty Recall", methods[i])
-plt.legend(loc="lower right")
-plt.show()
-'''
+
+if DATA == "cifar10" or DATA == "cifar100":
+
+    soft_ent_uncert_val = tfd.Categorical(probs=model.predict(x_val, verbose=0)).entropy().numpy()
+    softmax_entropy = get_normalized_certainties(model.predict(x_val, verbose=0), y_val,
+                                                 soft_ent_uncert_val, soft_ent_uncert_test)
+    mcdr_se = MCEstimator.normalized_certainties_shannon_entropy()
+    mcdr_mi = MCEstimator.normalized_certainties_mutual_information()
+    bag_se = BaEstimator.normalized_certainties_shannon_entropy()
+    bag_mi = BaEstimator.normalized_certainties_mutual_information()
+    rand_se = RISEstimator.normalized_certainties_shannon_entropy()
+    rand_mi = RISEstimator.normalized_certainties_mutual_information()
+    aug_se = DAEstimator.normalized_certainties_shannon_entropy()
+    aug_mi = DAEstimator.normalized_certainties_mutual_information()
+
+    certainties = [mcdr_se, mcdr_mi, bag_se, bag_mi, rand_se, rand_mi,
+                   aug_se, aug_mi,
+                   #NUEstimator.certainties,
+                   softmax_entropy]
+
+    results = [Evaluator(lbls, pred, certainty).results() for certainty, pred in zip(certainties, preds)]
+
+    plt.figure(figsize=(10, 10))
+    plt.suptitle(MODEL + " ---- " + DATA, fontsize=14)
+    plt.subplot(2, 2, 1)
+    for i, res in enumerate(results):
+        subplot_evaluation(res[0], "Uncertainty Accuracy", methods[i])
+    plt.subplot(2, 2, 2)
+    for i, res in enumerate(results):
+        subplot_evaluation(res[1], "Uncertainty Precision", methods[i])
+    plt.subplot(2, 2, 3)
+    for i, res in enumerate(results):
+        subplot_evaluation(res[2], "Uncertainty Specificity", methods[i])
+    plt.subplot(2, 2, 4)
+    for i, res in enumerate(results):
+        subplot_evaluation(res[3], "Uncertainty Recall", methods[i])
+    plt.legend(loc="lower right")
+    plt.show()
+
 
