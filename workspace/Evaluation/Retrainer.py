@@ -15,8 +15,8 @@ import tensorflow_probability as tfp
 tfd = tfp.distributions
 
 STARTDATA = 1000
-NUM_IMAGES = 1000
-RUNS = 6
+NUM_IMAGES = 100
+RUNS = 3
 PATH_TO_PRETRAINED_CNN_10 = "../models/classification/retrain/CNN_cifar10_" + str(STARTDATA) + "/cp.ckpt"
 PATH_TO_PRETRAINED_CNN_100 = "../models/classification/retrain/CNN_cifar100/cp.ckpt"
 
@@ -224,16 +224,16 @@ prepare_model().evaluate(xtest, tf.keras.utils.to_categorical(ytest.reshape((-1)
 print([list(ytrain).count(i) for i in range(10)])
 
 retrain_with_nuc()
-#retrain_with_ensemble(DataAugmentationEns, "SE")
-#retrain_with_ensemble(DataAugmentationEns, "MI")
-#retrain_with_ensemble(RandomInitShuffleEns, "SE")
-#retrain_with_ensemble(RandomInitShuffleEns, "MI")
-#retrain_with_MCdrop("SE")
-#retrain_with_MCdrop("MI")
-#retrain_with_softmax_entropy()
-#retrain_with_random_data()
-#retrain_with_ensemble(BaggingEns, "SE")
-#retrain_with_ensemble(BaggingEns, "MI")
+retrain_with_ensemble(DataAugmentationEns, "SE")
+retrain_with_ensemble(DataAugmentationEns, "MI")
+retrain_with_ensemble(RandomInitShuffleEns, "SE")
+retrain_with_ensemble(RandomInitShuffleEns, "MI")
+retrain_with_MCdrop("SE")
+retrain_with_MCdrop("MI")
+retrain_with_softmax_entropy()
+retrain_with_random_data()
+retrain_with_ensemble(BaggingEns, "SE")
+retrain_with_ensemble(BaggingEns, "MI")
 
 with open('results_retrain.json') as json_file:
     data = json.load(json_file)
@@ -254,26 +254,26 @@ nuc = [mean(data[str(imgs)]["NUC"])*100 for imgs in numbers]
 
 
 methods_to_show = [rand,
-                   #softmax,
-                   #mc_se,
-                   #mc_mi]
-                   #bag_se,
-                   #bag_mi,
-                   #aug_se,
-                   #aug_mi,
-                   #ris_se]
-                   #ris_mi]
+                   softmax,
+                   mc_se,
+                   mc_mi,
+                   bag_se,
+                   bag_mi,
+                   aug_se,
+                   aug_mi,
+                   ris_se,
+                   ris_mi,
                    nuc]
 labels = ["random",
-          #"softmax entropy",
-          #"MCdr SE",
-          #"MCdr MI"]
-          #"bag SE",
-          #"bag MI",
-          #"aug SE",
-          #"aug MI",
-          #"ris SE"]
-          #"ris MI"]
+          "softmax entropy",
+          "MCdr SE",
+          "MCdr MI",
+          "bag SE",
+          "bag MI",
+          "aug SE",
+          "aug MI",
+          "ris SE",
+          "ris MI",
           "NUC"]
 
 plt.figure(figsize=(8, 5))

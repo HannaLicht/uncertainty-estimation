@@ -206,6 +206,8 @@ def get_train_and_test_data(data, validation_test_split=False):
         X_train, y_train = list(zip(*train_images))
         X_val, y_val = list(zip(*val_images))
         X_test, y_test = list(zip(*test_images))
+        X_val, y_val = tf.reshape(X_val, (-1, 300, 300, 3)), tf.keras.utils.to_categorical(y_val, 1000)
+        X_test, y_test = tf.reshape(X_test, (-1, 300, 300, 3)), tf.keras.utils.to_categorical(y_test, 1000)
 
         if validation_test_split:
             return X_train, y_train, X_val, y_val, X_test, y_test, 1000

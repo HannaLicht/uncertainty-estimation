@@ -28,8 +28,8 @@ def expected_calibration_error(y_true, y_pred, certainties, num_bins=15, two_ret
         for b in range(num_bins):
             mask = bins == b
             if np.any(mask):
-                x.append(np.sum(certainties[mask])/len(certainties[mask]))
-                y.append(np.sum(correct[mask])/len(correct[mask]))
+                x.append(tf.reduce_sum(certainties[mask])/len(certainties[mask]))
+                y.append(tf.reduce_sum(correct[mask])/len(correct[mask]))
         return x, y
 
     else:
@@ -38,7 +38,7 @@ def expected_calibration_error(y_true, y_pred, certainties, num_bins=15, two_ret
             mask = bins == b
             if np.any(mask):
                 o += tf.abs(tf.reduce_sum(correct[mask]) - tf.reduce_sum(certainties[mask]))
-        return o / y_pred.shape[0]
+        return o / pred_y.shape[0]
 
 
 def static_calibration_error(y_true, y_pred, num_bins=15):
@@ -60,36 +60,29 @@ def static_calibration_error(y_true, y_pred, num_bins=15):
     return o / (y_pred.shape[0] * classes)
 
 
-def get_normalized_certainties(pred_val, y_val, uncertainties_val, uncertainties_test):
+def get_normalized_certainties(pred_val, y_val, uncertainties_val, uncertainties_test, num_bins=10):
     y_pred = tf.argmax(pred_val, axis=-1)
     correct = (y_pred == tf.argmax(y_val, axis=-1))
+    x = uncertainties_val
+    y = [1. if c else 0. for c in correct]
 
-    b = np.linspace(start=tf.reduce_min(uncertainties_val), stop=tf.reduce_max(uncertainties_val), num=10)
-    bins = np.digitize(uncertainties_val, bins=b, right=True)
-
-    x, y = [], []
-    for b in range(10):
-        mask = bins == b
-        if np.any(mask):
-            x.append(np.sum(uncertainties_val[mask]) / len(uncertainties_val[mask]))
-            y.append(np.sum(correct[mask]) / len(correct[mask]))
-
-    normalized_certainties = isotonic_regression(x, y, bins, uncertainties_test)
-    return normalized_certainties
+    normalized_certainties = isotonic_regression(x, y, uncertainties_test)
+    return tf.cast(normalized_certainties, tf.float32)
 
 
-def reliability_diagram(y_true, output, certainties=None, num_bins=15, method=None, label_perfectly_calibrated=True):
+def reliability_diagram(y_true, output, certainties=None, num_bins=15, method=None, label_perfectly_calibrated=True,
+                        color=None):
     x, y = expected_calibration_error(y_true, output, certainties=certainties, num_bins=num_bins, two_returns=True)
-    plt.plot(x, y, "s-", label=method)
+    plt.plot(x, y, "s-", label=method, color=color)
     plt.plot([0, 1], [0, 1], "k:", label="Perfekt kalibriert" if label_perfectly_calibrated else None)
     plt.xlabel("Konfidenz")
     plt.ylabel("Accuracy")
     if method is not None or label_perfectly_calibrated:
-        plt.legend(loc="upper left")
+        plt.legend(bbox_to_anchor=(0.5, 0.4))
     #plt.title("Calibration Plot")
 
 
-def uncertainty_diagram(y_true, y_pred, uncertainties, method="", label=""):
+def uncertainty_diagram(y_true, y_pred, uncertainties, title="", label=None, color=None, plot_reg=False):
     y_pred = np.argmax(y_pred, axis=-1).astype(np.float32)
     correct = (y_pred == y_true)
 
@@ -102,21 +95,23 @@ def uncertainty_diagram(y_true, y_pred, uncertainties, method="", label=""):
         if np.any(mask):
             x.append(np.sum(uncertainties[mask]) / len(uncertainties[mask]))
             y.append(np.sum(correct[mask]) / len(correct[mask]))
-    plt.plot(x, y, "s-", label=label)
-    plt.xlabel("Uncertainty")
+    plt.plot(x, y, "s-", color=color, label=label)
+    plt.title(title)
+    plt.xlabel("Uncertainty Estimates")
     plt.ylim((-0.05, 1.05))
     plt.ylabel("Accuracy")
-    plt.title(method)
 
-    if label == "Validierungsdaten":
-        normalized_certainties = isotonic_regression(x, y, bins, x)
-        plt.plot(x, normalized_certainties, "k:", label="Isotonische Regression Validierung")
+    if label == "Validierungsdaten" or plot_reg:
+        y = [1. if c else 0. for c in correct]
+        x = np.linspace(start=tf.reduce_min(uncertainties), stop=tf.reduce_max(uncertainties), num=100)
+        normalized_certainties = isotonic_regression(uncertainties, y, x)
+        plt.plot(x, normalized_certainties, "k--", label=None if label is None else "Regressionsfunktion")
 
-    plt.legend(loc="lower left")
+    if label is not None:
+        plt.legend(bbox_to_anchor=(0.5, 1))
 
 
-def isotonic_regression(x, y, bins, uncertainties):
-    weights = [list(bins).count(i) for i in range(10)]
+def isotonic_regression(x, y, uncertainties):
     regressor = IsotonicRegression(y_min=0.0, y_max=1.0, increasing=False, out_of_bounds='clip')
-    regressor = regressor.fit(x, y, sample_weight=weights)
+    regressor = regressor.fit(x, y)
     return regressor.predict(uncertainties)

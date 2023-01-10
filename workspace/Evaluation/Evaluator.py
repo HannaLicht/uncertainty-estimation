@@ -62,37 +62,38 @@ class Evaluator:
 
     def recall(self, groups):
         """
+        = sensitivity
         indicates how much of the positive outputs are correctly labeled as positive:
-        ratio of incorrect predictions that are uncertain (TU) to all the incorrect predictions (TU+FC)
+        ratio of correct predictions that are certain (TC) to all the correct predictions (TC+FU)
         :param groups: True Uncertain (TU), True Certain (TC), False Uncertain (FU), False Certain (FC)
         :return: sensitivity ratio
         """
-        TU = groups[0]
-        FC = groups[3]
-        return TU/(TU+FC)
+        TC = groups[1]
+        FU = groups[2]
+        return TC/(TC+FU)
 
     def specificity(self, groups):
         """
         true negative rate:
-        ratio of correct predictions that are certain (TC) to all the right predictions (TC+FU)
+        ratio of incorrect predictions that are uncertain (TU) to all the incorrect predictions (TU+FC)
         :param groups: True Uncertain (TU), True Certain (TC), False Uncertain (FU), False Certain (FC)
         :return: specificity ratio
         """
-        TC = groups[1]
-        FU = groups[2]
-        return TC/(TC + FU)
+        TU = groups[0]
+        FC = groups[3]
+        return TU/(TU + FC)
 
     def precision(self, groups):
         """
         positive predictive value:
-        ratio of uncertain and incorrect (TU) predictions to all uncertain predictions (TU+FU)
+        ratio of certain and correct (TC) predictions to all certain predictions (TC+FC)
         :param groups: True Uncertain (TU), True Certain (TC), False Uncertain (FU), False Certain (FC)
         :return: precision ratio
         """
-        TU = groups[0]
-        FU = groups[2]
+        TC = groups[1]
+        FC = groups[3]
         try:
-            result = TU/(TU+FU)
+            result = TC/(TC+FC)
             return result
         except ZeroDivisionError:
             return None

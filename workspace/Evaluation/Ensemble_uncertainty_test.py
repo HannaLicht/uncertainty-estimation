@@ -9,7 +9,7 @@ from functions import get_train_and_test_data
 import tensorflow as tf
 
 NUM_MEMBERS = 5
-MODEL = "CNN_cifar10_1000"
+MODEL = "CNN_cifar10_100"
 METHOD = "bagging"
 DATA = "cifar10"
 

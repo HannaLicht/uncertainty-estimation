@@ -136,18 +136,18 @@ class SamplingBasedEstimator:
         plt.legend(loc="upper left")
 
         plt.subplot(2, 3, 5)
-        uncertainty_diagram(test_lbls, self.p_ens, uncert_se, method="Shannon Entropy", label="Testdaten")
+        uncertainty_diagram(test_lbls, self.p_ens, uncert_se, title="Shannon Entropy", label="Testdaten")
         plt.subplot(2, 3, 6)
-        uncertainty_diagram(test_lbls, self.p_ens, uncert_mi, method="Mutual Information", label="Testdaten")
+        uncertainty_diagram(test_lbls, self.p_ens, uncert_mi, title="Mutual Information", label="Testdaten")
 
         uncert_se = self.uncertainties_shannon_entropy(val=True)
         uncert_mi = self.uncertainties_mutual_information(val=True)
 
         plt.subplot(2, 3, 5)
-        uncertainty_diagram(tf.argmax(self.yval, axis=-1), self.val_p_ens, uncert_se, method="Shannon Entropy",
+        uncertainty_diagram(tf.argmax(self.yval, axis=-1), self.val_p_ens, uncert_se, title="Shannon Entropy",
                             label="Validierungsdaten")
         plt.subplot(2, 3, 6)
-        uncertainty_diagram(tf.argmax(self.yval, axis=-1), self.val_p_ens, uncert_mi, method="Mutual Information",
+        uncertainty_diagram(tf.argmax(self.yval, axis=-1), self.val_p_ens, uncert_mi, title="Mutual Information",
                             label="Validierungsdaten")
 
         plt.suptitle(self.estimator_name, fontsize=14)
@@ -209,28 +209,25 @@ class MCDropoutEstimator(SamplingBasedEstimator):
 
         self.T = T
         self.estimator_name = "MC Dropout"
-        print("test1")
         self.model = make_MC_dropout(model, layer_regex=".*drop.*")
 
         # check, if all dropout layers are MC dropout layers (training=True -> activated during inference)
-        for layer in self.model.get_config().get("layers"):
-            print(layer)
+        #for layer in self.model.get_config().get("layers"):
+         #   print(layer)
 
         self.X, self.num_classes, self.predictions = X, num_classes, []
 
         # batch X to reduce RAM usage
         X = tf.split(X, num_or_size_splits=100 if num_classes == 1000 else 10)
-        print("test2")
         for _ in tqdm.tqdm(range(self.T)):
             preds = self.model(X[0])[-1]
             for img_batch in X[1:]:
                 preds = tf.concat([preds, self.model(img_batch)[-1]], axis=0)
             self.predictions.append(preds)
         self.p_ens = tf.math.reduce_mean(self.predictions, axis=0)
-
         if xval is not None:
-            self.xval, self.yval = xval, yval
-            xval = tf.split(xval, num_or_size_splits=500 if num_classes == 1000 else 10)
+            self.xval, self.yval, self.val_predictions = xval, yval, []
+            xval = tf.split(xval, num_or_size_splits=100 if num_classes == 1000 else 10)
             for _ in tqdm.tqdm(range(self.T)):
                 preds = self.model(xval[0])[-1]
                 for img_batch in xval[1:]:
