@@ -1,5 +1,7 @@
 import os
 import re
+
+import numpy as np
 import tensorflow as tf
 from keras.applications import efficientnet
 import tensorflow_datasets as tfds
@@ -90,6 +92,30 @@ def CNN(shape=(32, 32, 3), classes=100):
     return model
 
 
+def build_effnet(num_classes, img_size=300):
+    inputs = tf.keras.layers.Input(shape=(img_size, img_size, 3))
+    model = tf.keras.applications.EfficientNetB3(include_top=False, input_tensor=inputs, weights="imagenet")
+
+    # Freeze the pretrained weights
+    model.trainable = False
+
+    # Rebuild top
+    x = tf.keras.layers.GlobalAveragePooling2D(name="avg_pool")(model.output)
+    x = tf.keras.layers.BatchNormalization()(x)
+
+    top_dropout_rate = 0.2
+    x = tf.keras.layers.Dropout(top_dropout_rate, name="top_dropout")(x)
+    outputs = tf.keras.layers.Dense(num_classes, activation="softmax", name="pred")(x)
+
+    # Compile
+    model = tf.keras.Model(inputs, outputs, name="EfficientNet")
+    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-2)
+    model.compile(
+        optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"]
+    )
+    return model
+
+
 def get_dropout_rate(model):
     layers = model.get_config().get('layers')
     dropout = []
@@ -100,6 +126,26 @@ def get_dropout_rate(model):
     dropout = tf.math.reduce_mean(dropout)
 
     return dropout
+
+
+def split_validation_from_train(xtrain, ytrain, num_classes, num_imgs_per_class):
+    count = np.zeros(num_classes)
+    xval, yval, x_train, y_train = [], [], [], []
+
+    for i, (img, y) in enumerate(zip(xtrain, ytrain)):
+        lbl = tf.argmax(y, axis=-1)
+        if count[lbl] < num_imgs_per_class:
+            count[lbl] = count[lbl] + 1
+            xval.append(img)
+            yval.append(y)
+        else:
+            x_train.append(img)
+            y_train.append(y)
+
+    xval, yval = tf.reshape(xval, (-1, 300, 300, 3)), tf.reshape(yval, (-1, 196))
+    x_train, yt_rain = tf.reshape(x_train, (-1, 300, 300, 3)), tf.reshape(y_train, (-1, 196))
+
+    return x_train, y_train, xval, yval
 
 
 # preprocess function
@@ -160,6 +206,43 @@ def get_train_and_test_data(data, validation_test_split=False):
         test_images = dataset['test'].map(load_image, num_parallel_calls=tf.data.AUTOTUNE)
         X_test, y_test = list(zip(*test_images))
         classes = 3
+
+    elif data == "cars196":
+        # https://keras.io/examples/vision/image_classification_efficientnet_fine_tuning/
+        IMG_SIZE = 300
+
+        dataset_name = "cars196"
+        (ds_train, ds_test), ds_info = tfds.load(
+            dataset_name, split=["train", "test"], with_info=True, as_supervised=True, shuffle_files=False
+        )
+        NUM_CLASSES = ds_info.features["label"].num_classes
+
+        size = (IMG_SIZE, IMG_SIZE)
+        ds_train = ds_train.map(lambda image, label: (tf.image.resize(image, size), label))
+        ds_test = ds_test.map(lambda image, label: (tf.image.resize(image, size), label))
+
+        # One-hot / categorical encoding
+        def input_preprocess(image, label):
+            label = tf.one_hot(label, NUM_CLASSES)
+            return image, label
+
+        ds_train = ds_train.map(input_preprocess, num_parallel_calls=tf.data.AUTOTUNE)
+        ds_test = ds_test.map(input_preprocess)
+
+        xtrain, ytrain = list(zip(*ds_train))
+        xtest, ytest = list(zip(*ds_test))
+
+        # make sure the classes among valid. data are uniformly distributed (each class has 8 images -> 8*196 = 1568)
+        xtrain, ytrain, xval, yval = split_validation_from_train(xtrain, ytrain, NUM_CLASSES, num_imgs_per_class=8)
+
+        xtest, ytest = tf.reshape(xtest, (-1, 300, 300, 3)), tf.reshape(ytest, (-1, 196))
+
+        #print([list(tf.argmax(yval, axis=-1)).count(i) for i in range(196)])
+
+        if validation_test_split:
+            return xtrain, ytrain, xval, yval, xtest, ytest, NUM_CLASSES
+        else:
+            return xtrain, ytrain, xtest, ytest, NUM_CLASSES
 
     elif data == "imagenet":
         # https://medium.com/analytics-vidhya/how-to-train-a-neural-network-classifier-on-imagenet-using-tensorflow-2-ede0ea3a35ff
@@ -224,49 +307,3 @@ def get_train_and_test_data(data, validation_test_split=False):
 
     else:
         return X_train, y_train, X_test, y_test, classes
-
-'''
-def get_test_data(data):
-    """
-    :param data: name of dataset
-    :return: test images, test labels, number of classes
-    """
-    if data == "mnist":
-        _, (X_test, y_test) = tf.keras.datasets.mnist.load_data()
-        X_test = X_test.reshape(-1, 28, 28, 1) / 255.0
-        return X_test, y_test, 10
-
-    elif data == "fashion_mnist":
-        _, (X_test, y_test) = tf.keras.datasets.fashion_mnist.load_data()
-        X_test = X_test.reshape(-1, 28, 28, 1) / 255.0
-        return X_test, y_test, 10
-
-    elif data == "cifar10":
-        _, (X_test, y_test) = tf.keras.datasets.cifar10.load_data()
-        X_test = X_test.reshape(-1, 32, 32, 3) / 255.0
-        y_test = tf.keras.utils.to_categorical(y_test.reshape((-1)), 10)
-        return X_test, y_test, 10
-
-    elif data == "cifar100":
-        _, (X_test, y_test) = tf.keras.datasets.cifar100.load_data()
-        X_test = X_test.reshape(-1, 32, 32, 3) / 255.0
-        y_test = tf.keras.utils.to_categorical(y_test.reshape((-1)), 100)
-        return X_test, y_test, 100
-
-    elif data == "imagenette":
-        dir = '../datasets/imagenette'
-        #testset = tfds.load('imagenette', split='validation', data_dir=dir, as_supervised=True, batch_size=num_data)
-        testset = tfds.load('imagenette', split='validation', data_dir=dir, as_supervised=True, batch_size=10)
-        testset = testset.map(resize_with_crop_effnet)
-        for img, lbl in testset:
-            X_test = img
-            y_test = lbl
-            break
-        y_test = imgnette_to_imgnet_lbls(y_test)
-        y_test = tf.keras.utils.to_categorical(y_test, 1000)  # model output 1000 classes (imagenet)
-        return X_test, y_test, 1000
-
-    else:
-        print("dataset not available")
-        return None
-'''

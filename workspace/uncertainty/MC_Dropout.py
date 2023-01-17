@@ -218,16 +218,17 @@ class MCDropoutEstimator(SamplingBasedEstimator):
         self.X, self.num_classes, self.predictions = X, num_classes, []
 
         # batch X to reduce RAM usage
-        X = tf.split(X, num_or_size_splits=100 if num_classes == 1000 else 10)
+        X = tf.split(X, num_or_size_splits=43 if num_classes == 196 else 10)
         for _ in tqdm.tqdm(range(self.T)):
             preds = self.model(X[0])[-1]
             for img_batch in X[1:]:
                 preds = tf.concat([preds, self.model(img_batch)[-1]], axis=0)
             self.predictions.append(preds)
         self.p_ens = tf.math.reduce_mean(self.predictions, axis=0)
+
         if xval is not None:
             self.xval, self.yval, self.val_predictions = xval, yval, []
-            xval = tf.split(xval, num_or_size_splits=100 if num_classes == 1000 else 10)
+            xval = tf.split(xval, num_or_size_splits=8 if num_classes == 196 else 10)
             for _ in tqdm.tqdm(range(self.T)):
                 preds = self.model(xval[0])[-1]
                 for img_batch in xval[1:]:

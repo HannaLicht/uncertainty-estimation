@@ -5,6 +5,14 @@ import tensorflow as tf
 from uncertainty.calibration_classification import reliability_diagram
 
 
+# batches have to include the same number of samples -> evenly divide dataset
+def evenly_split(data):
+    batch_size = 100
+    while len(data) % batch_size != 0:
+        batch_size = batch_size - 1
+    return batch_size
+
+
 class NeighborhoodUncertaintyClassifier:
 
     def __init__(self, model, xtrain, ytrain, xval, yval, x, path_uncertainty_model=None, k=10):
@@ -17,8 +25,8 @@ class NeighborhoodUncertaintyClassifier:
         self.train_lbls = tf.argmax(ytrain, axis=-1)
         self.xtrain = xtrain
         self.x = x
-        self.dataset_train = tf.data.Dataset.from_tensor_slices((xtrain, self.train_lbls)).batch(100)
-        self.dataset_val = tf.data.Dataset.from_tensor_slices((xval, tf.argmax(yval, axis=-1))).batch(100)
+        self.dataset_train = tf.data.Dataset.from_tensor_slices((xtrain, self.train_lbls)).batch(evenly_split(xtrain))
+        self.dataset_val = tf.data.Dataset.from_tensor_slices((xval, tf.argmax(yval, axis=-1))).batch(evenly_split(xval))
         output = self.model.layers[-2].output
         self.model_without_last_layer = tf.keras.Model(inputs=self.model.input, outputs=output)
         self.model_without_last_layer.compile()
@@ -105,7 +113,7 @@ class NeighborhoodUncertaintyClassifier:
         return u
 
     def get_certainties(self):
-        x_batched = tf.data.Dataset.from_tensor_slices(self.x).batch(100)
+        x_batched = tf.data.Dataset.from_tensor_slices(self.x).batch(evenly_split(self.x))
         certainties = []
         for _, img_batch in zip(tqdm.tqdm(range(len(x_batched))), x_batched):
             certainties.append(self.predict_certainty(img_batch))

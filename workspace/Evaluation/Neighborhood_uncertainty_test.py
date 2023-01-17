@@ -1,26 +1,35 @@
 import re
 import sys
 sys.path.append("/home/urz/hlichten")
-from functions import CNN, get_train_and_test_data
+from functions import CNN, get_train_and_test_data, split_validation_from_train, build_effnet
 import tensorflow as tf
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 
-model_name = "CNN_cifar10_10000"
-data = "cifar10"
+model_name = "effnetb3"
+data = "cars196"
+use_validation_data = False
+
 checkpoint_path = "../models/classification/" + model_name + "/cp.ckpt"
-path_uncertainty_model = "../models/classification/uncertainty_model/" + data + "/cp.ckpt"
+xtrain, ytrain, xval, yval, xtest, ytest, cl = get_train_and_test_data(data, validation_test_split=True)
 
-model = CNN(classes=100 if model_name == "CNN_cifar100" else 10)
+if use_validation_data:
+    pre_path_uncertainty_model = "../models/classification/uncertainty_model/"
+    if model_name != "effnetb3":
+        xtrain, ytrain = xval[:int(4*len(xval) / 5)], yval[:int(4*len(yval) / 5)]
+        xval, yval = xval[int(4*len(xval) / 5):], yval[int(4*len(yval) / 5):]
+    else:
+        xtrain, ytrain, xval, yval = split_validation_from_train(xval, yval, cl, num_imgs_per_class=2)
+else:
+    pre_path_uncertainty_model = "../models/classification/uncertainty_model/trained_on_traindata/"
+
+path_uncertainty_model = pre_path_uncertainty_model + data + "/cp.ckpt"
+model = CNN(classes=100 if model_name == "CNN_cifar100" else 10) if model_name != "effnetb3" else build_effnet(cl)
 model.load_weights(checkpoint_path)
-
-_, _, xval, yval, xtest, ytest, _ = get_train_and_test_data(data, validation_test_split=True)
-xtrain, ytrain = xval[:int(4*len(xval) / 5)], yval[:int(4*len(yval) / 5)]
-xval, yval = xval[int(4*len(xval) / 5):], yval[int(4*len(yval) / 5):]
 
 num_data = None
 if re.match('CNN_cifar10_.*', model_name):
     num_data = int(model_name.replace('CNN_cifar10_', ""))
-    path_uncertainty_model = "../models/classification/uncertainty_model/" + data + "_" + str(num_data) + "/cp.ckpt"
+    path_uncertainty_model = pre_path_uncertainty_model + data + "_" + str(num_data) + "/cp.ckpt"
 
 model.evaluate(xtest, ytest)
 
@@ -49,15 +58,15 @@ correct = (tf.argmax(ytest, axis=-1) == tf.argmax(model.predict(xtest), axis=-1)
 
 for k in [5, 10, 25, 50, 100]:
     if num_data is None:
-        path_uncertainty_model = "../models/classification/uncertainty_model/different_k/" + str(k) + "/" + data + \
+        path_uncertainty_model = pre_path_uncertainty_model + "different_k/" + str(k) + "/" + data + \
                                  "/cp.ckpt"
         if k == 10:
-            path_uncertainty_model = "../models/classification/uncertainty_model/" + data + "/cp.ckpt"
+            path_uncertainty_model = pre_path_uncertainty_model + data + "/cp.ckpt"
     else:
-        path_uncertainty_model = "../models/classification/uncertainty_model/different_k/" + str(k) + "/" + data + "_" \
+        path_uncertainty_model = pre_path_uncertainty_model + "different_k/" + str(k) + "/" + data + "_" \
                                  + str(num_data) + "/cp.ckpt"
         if k == 10:
-            path_uncertainty_model = "../models/classification/uncertainty_model/" + data + "_" + str(num_data) + \
+            path_uncertainty_model = pre_path_uncertainty_model+ data + "_" + str(num_data) + \
                                      "/cp.ckpt"
 
     estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest,

@@ -3,7 +3,7 @@ import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from matplotlib import pyplot as plt
 from keras.preprocessing.image import ImageDataGenerator
-from functions import create_simple_model, CNN
+from functions import create_simple_model, CNN, build_effnet
 from abc import abstractmethod
 import tensorflow_probability as tfp
 
@@ -51,20 +51,7 @@ class Ensemble(SamplingBasedEstimator):
             y_val = tf.reshape(y_val, (-1, 128, 128, 1))
 
         train_imgs, train_lbls = self.prepare_data(X_train, y_train, num_members)
-
-        if model_name == "simple_seq_model":
-            self.members = [create_simple_model() for _ in range(num_members)]
-        elif model_name == "CNN_cifar10":
-            self.members = [CNN(classes=10) for _ in range(num_members)]
-            for member in self.members:
-                member.load_weights("../models/classification/CNN_cifar100/cp.ckpt")
-                member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
-        elif model_name == "CNN_cifar100":
-            self.members = [CNN(classes=100) for _ in range(num_members)]
-        elif model_name == "modified_UNet":
-            self.members = [unet_model(output_channels=self.num_classes) for _ in range(num_members)]
-        else:
-            raise NotImplementedError
+        self.init_members(model_name, num_members, optimizer, loss, metrics)
 
         rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
         early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=20, restore_best_weights=True)
@@ -77,6 +64,23 @@ class Ensemble(SamplingBasedEstimator):
                 model.save(path_to_ensemble + "/member_" + str(index))
 
         self.predict()
+
+    def init_members(self, model_name, num_members, optimizer, loss, metrics):
+        if model_name == "simple_seq_model":
+            self.members = [create_simple_model() for _ in range(num_members)]
+        elif model_name == "CNN_cifar10":
+            self.members = [CNN(classes=10) for _ in range(num_members)]
+            for member in self.members:
+                member.load_weights("../models/classification/CNN_cifar100/cp.ckpt")
+                member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+        elif model_name == "CNN_cifar100":
+            self.members = [CNN(classes=100) for _ in range(num_members)]
+        elif model_name == "effnetb3":
+            self.members = [build_effnet(self.num_classes) for _ in range(num_members)]
+        elif model_name == "modified_UNet":
+            self.members = [unet_model(output_channels=self.num_classes) for _ in range(num_members)]
+        else:
+            raise NotImplementedError
 
     def predict(self):
         self.predictions = [model.predict(self.X, batch_size=32) for model in self.members]
@@ -113,7 +117,8 @@ class RandomInitShuffleEns(Ensemble):
                          optimizer, loss, metrics, num_members, val)
 
     def prepare_data(self, xtrain, ytrain, num_members):
-        return [xtrain for _ in range(num_members)], [ytrain for _ in range(num_members)]
+        return [xtrain for _ in range(num_members)], \
+            [tf.reshape(ytrain, (-1, self.num_classes)) for _ in range(num_members)]
 
 
 class DataAugmentationEns(Ensemble):
@@ -133,20 +138,7 @@ class DataAugmentationEns(Ensemble):
             y_val = tf.reshape(y_val, (-1, 128, 128, 1))
 
         data_generator = self.prepare_data(X_train, y_train, num_members)
-
-        if model_name == "simple_seq_model":
-            self.members = [create_simple_model() for _ in range(num_members)]
-        elif model_name == "CNN_cifar10":
-            self.members = [CNN(classes=10) for _ in range(num_members)]
-            for member in self.members:
-                member.load_weights("../models/classification/CNN_cifar100/cp.ckpt")
-                member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
-        elif model_name == "CNN_cifar100":
-            self.members = [CNN(classes=100) for _ in range(num_members)]
-        elif model_name == "modified_UNet":
-            self.members = [unet_model(output_channels=self.num_classes) for _ in range(num_members)]
-        else:
-            raise NotImplementedError
+        self.init_members(model_name, num_members, optimizer, loss, metrics)
 
         rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
         early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=20, restore_best_weights=True)

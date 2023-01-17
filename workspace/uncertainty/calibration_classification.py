@@ -1,5 +1,5 @@
 # https://lars76.github.io/2020/08/07/metrics-for-uncertainty-estimation.html
-
+from scipy.interpolate import interp1d
 import numpy as np
 from sklearn.isotonic import IsotonicRegression
 import tensorflow as tf
@@ -66,7 +66,7 @@ def get_normalized_certainties(pred_val, y_val, uncertainties_val, uncertainties
     x = uncertainties_val
     y = [1. if c else 0. for c in correct]
 
-    normalized_certainties = isotonic_regression(x, y, uncertainties_test)
+    _, normalized_certainties = isotonic_regression(x, y, uncertainties_test)
     return tf.cast(normalized_certainties, tf.float32)
 
 
@@ -82,7 +82,7 @@ def reliability_diagram(y_true, output, certainties=None, num_bins=15, method=No
     #plt.title("Calibration Plot")
 
 
-def uncertainty_diagram(y_true, y_pred, uncertainties, title="", label=None, color=None, plot_reg=False):
+def uncertainty_diagram(y_true, y_pred, uncertainties, title="", label=None, color=None):
     y_pred = np.argmax(y_pred, axis=-1).astype(np.float32)
     correct = (y_pred == y_true)
 
@@ -95,23 +95,37 @@ def uncertainty_diagram(y_true, y_pred, uncertainties, title="", label=None, col
         if np.any(mask):
             x.append(np.sum(uncertainties[mask]) / len(uncertainties[mask]))
             y.append(np.sum(correct[mask]) / len(correct[mask]))
-    plt.plot(x, y, "s-", color=color, label=label)
+    plt.plot(x, y, "s-", color=color, label=label, zorder=1)
     plt.title(title)
     plt.xlabel("Uncertainty Estimates")
     plt.ylim((-0.05, 1.05))
     plt.ylabel("Accuracy")
 
-    if label == "Validierungsdaten" or plot_reg:
-        y = [1. if c else 0. for c in correct]
-        x = np.linspace(start=tf.reduce_min(uncertainties), stop=tf.reduce_max(uncertainties), num=100)
-        normalized_certainties = isotonic_regression(uncertainties, y, x)
-        plt.plot(x, normalized_certainties, "k--", label=None if label is None else "Regressionsfunktion")
-
     if label is not None:
         plt.legend(bbox_to_anchor=(0.5, 1))
+
+
+def plot_regression(y_true, y_pred, uncertainties, title="", label=False):
+    y_pred = np.argmax(y_pred, axis=-1).astype(np.float32)
+    correct = (y_pred == y_true)
+
+    plt.title(title)
+    plt.xlabel("Uncertainty Estimates")
+    plt.ylim((-0.05, 1.05))
+    plt.ylabel("Accuracy")
+
+    y = [1. if c else 0. for c in correct]
+    x = np.linspace(start=tf.reduce_min(uncertainties), stop=tf.reduce_max(uncertainties), num=100)
+    regressor, normalized_certainties = isotonic_regression(uncertainties, y, x)
+    plt.plot(x, normalized_certainties, color="black", label="Regressionsfunktion" if label else None, zorder=0)
+
+    if label:
+        plt.legend(bbox_to_anchor=(0.5, 1))
+
+    return regressor
 
 
 def isotonic_regression(x, y, uncertainties):
     regressor = IsotonicRegression(y_min=0.0, y_max=1.0, increasing=False, out_of_bounds='clip')
     regressor = regressor.fit(x, y)
-    return regressor.predict(uncertainties)
+    return regressor, regressor.predict(uncertainties)

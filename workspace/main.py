@@ -1,18 +1,8 @@
-import tensorflow as tf
-import sys
-sys.path.append("/home/urz/hlichten")
-import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow_probability as tfp
 
-from functions import get_train_and_test_data, CNN
-from uncertainty.Ensemble import BaggingEns, DataAugmentationEns, RandomInitShuffleEns
-from uncertainty.MC_Dropout import MCDropoutEstimator
-from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
-from uncertainty.calibration_classification import expected_calibration_error, get_normalized_certainties
-
 tfd = tfp.distributions
-'''
+
 
 def adjust_lightness(color, amount=0.5):
     import matplotlib.colors as mc
@@ -69,73 +59,3 @@ box = plt.subplot(1, 2, 2).get_position()
 plt.subplot(1, 2, 2).set_position([box.x0*0.9, box.y0, box.width * 0.8, box.height*0.8])
 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 plt.show()
-'''
-
-'''
-# calibration plot
-plt.figure(figsize=(4.5, 3.7))
-plt.plot([0, 1], [0, 1], 'k--', label="Perfekt kalibriert")
-plt.plot(np.linspace(start=0, stop=0.5, num=50), tf.sigmoid(np.linspace(start=-6, stop=0, num=50)),
-         label="Zu selbstsicher", color="red")
-plt.plot(np.linspace(start=0.5, stop=1, num=50), tf.sigmoid(np.linspace(start=0, stop=6, num=50)),
-         label="Zu unsicher", color="brown")
-plt.fill_between(np.linspace(start=0, stop=0.5, num=50), np.linspace(start=0, stop=0.5, num=50),
-                 tf.sigmoid(np.linspace(start=-6, stop=0, num=50)), color='red', alpha=0.15)
-plt.fill_between(np.linspace(start=0.5, stop=1, num=50), np.linspace(start=0.5, stop=1, num=50),
-                 tf.sigmoid(np.linspace(start=0, stop=6, num=50)), color='brown', alpha=0.15)
-plt.xlabel('Konfidenz')
-plt.ylabel('tatsächliche Accuracy')
-plt.legend(loc="upper left")
-plt.savefig("Evaluation/plots/calibration_plot.png", dpi=300)
-plt.show()
-'''
-
-method = "mc_drop"
-
-for model_name in ["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_cifar10_10000", "CNN_cifar10", "CNN_cifar100"]:
-    xtrain, ytrain, xval, yval, xtest, ytest, cl = get_train_and_test_data("cifar10" if model_name != "CNN_cifar100"
-                                                                           else "cifar100",
-                                                                           validation_test_split=True)
-
-    model = CNN(classes=cl)
-    model.load_weights("models/classification/" + model_name + "/cp.ckpt")
-    ypred = model.predict(xtest)
-
-    path = "models/classification/ensembles/" + method + "/" + model_name
-    if method == "mc_drop":
-        estimator = MCDropoutEstimator(model, xtest, cl, xval=xval, yval=yval)
-        ypred = estimator.p_ens
-    elif method == "softmax":
-        soft_ent_uncert_val = tfd.Categorical(probs=model.predict(xval, verbose=0)).entropy().numpy()
-        soft_ent_uncert_test = tfd.Categorical(probs=model.predict(xtest, verbose=0)).entropy().numpy()
-        softmax_entropy = get_normalized_certainties(model.predict(xval, verbose=0), yval,
-                                                     soft_ent_uncert_val, soft_ent_uncert_test)
-        ece = expected_calibration_error(tf.argmax(ytest, axis=-1), ypred, softmax_entropy).numpy()
-        print(model_name + " ", ece)
-        continue
-    elif method == "bagging":
-        estimator = BaggingEns(xtrain, ytrain, xtest, cl, model_name, path, xval, yval, val=True)
-        ypred = estimator.p_ens
-    elif method == "data_augmentation":
-        estimator = DataAugmentationEns(xtrain, ytrain, xtest, cl, model_name, path, xval, yval, val=True)
-        ypred = estimator.p_ens
-    elif method == "rand_initialization_shuffle":
-        estimator = RandomInitShuffleEns(xtrain, ytrain, xtest, cl, model_name, path, xval, yval, val=True)
-        ypred = estimator.p_ens
-    elif method == "nuc":
-        path = "models/classification/uncertainty_model/"
-        xtrain, ytrain = xval[:int(len(xval) / 2)], yval[:int(len(yval) / 2)]
-        xval, yval = xval[int(len(xval) / 2):], yval[int(len(yval) / 2):]
-        estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest,
-                                                  path + model_name.replace('CNN_', "") + "/cp.ckpt")
-        ece = expected_calibration_error(tf.argmax(ytest, axis=-1), ypred, estimator.certainties).numpy()
-        print(model_name + " ", ece)
-        continue
-    else:
-        raise NotImplementedError
-
-    ece_se = expected_calibration_error(tf.argmax(ytest, axis=-1), ypred,
-                                        estimator.normalized_certainties_shannon_entropy()).numpy()
-    ece_mi = expected_calibration_error(tf.argmax(ytest, axis=-1), ypred,
-                                        estimator.normalized_certainties_mutual_information()).numpy()
-    print(model_name + " SE: ", ece_se, " MI: ", ece_mi)
