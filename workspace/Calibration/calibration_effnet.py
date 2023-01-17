@@ -79,7 +79,7 @@ for count, title in enumerate(titles):
 
     elif count == 4:
         reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=model_pred, certainties=nuc,
-                            label_perfectly_calibrated=False, num_bins=15, color="red", method="Certainty Score")
+                            label_perfectly_calibrated=False, num_bins=15, color="tomato", method="Certainty Score")
 
         ece = expected_calibration_error(tf.argmax(ytest, axis=-1), model_pred, nuc).numpy()
         plt.text(0.02, 0.95, "ECE: {:.3f}".format(ece), color="brown", weight="bold")

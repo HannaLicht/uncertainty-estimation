@@ -5,8 +5,8 @@ from functions import CNN, get_train_and_test_data, split_validation_from_train,
 import tensorflow as tf
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 
-model_name = "effnetb3"
-data = "cars196"
+model_name = "CNN_cifar100"
+data = "cifar100"
 use_validation_data = False
 
 checkpoint_path = "../models/classification/" + model_name + "/cp.ckpt"
@@ -30,6 +30,9 @@ num_data = None
 if re.match('CNN_cifar10_.*', model_name):
     num_data = int(model_name.replace('CNN_cifar10_', ""))
     path_uncertainty_model = pre_path_uncertainty_model + data + "_" + str(num_data) + "/cp.ckpt"
+    if not use_validation_data:
+        xtrain, ytrain = xtrain[:num_data], ytrain[:num_data]
+
 
 model.evaluate(xtest, ytest)
 
@@ -66,7 +69,7 @@ for k in [5, 10, 25, 50, 100]:
         path_uncertainty_model = pre_path_uncertainty_model + "different_k/" + str(k) + "/" + data + "_" \
                                  + str(num_data) + "/cp.ckpt"
         if k == 10:
-            path_uncertainty_model = pre_path_uncertainty_model+ data + "_" + str(num_data) + \
+            path_uncertainty_model = pre_path_uncertainty_model + data + "_" + str(num_data) + \
                                      "/cp.ckpt"
 
     estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest,

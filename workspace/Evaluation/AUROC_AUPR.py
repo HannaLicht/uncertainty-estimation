@@ -1,6 +1,4 @@
-import matplotlib.pyplot as plt
 import tensorflow as tf
-from uncertainty.calibration_classification import get_normalized_certainties
 import sys
 sys.path.append("/home/urz/hlichten")
 sys.path.append("/home/hanna/Schreibtisch/Ingenieurinformatik VW/Igenieurinformatik/BA/uncertainty-estimation/workspace")
@@ -13,7 +11,7 @@ from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifie
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
-DATA = "cifar10_100"
+DATA = "cifar100"
 MODEL = "CNN"
 CHECKPOINT_PATH = "../models/classification/" + MODEL + "_" + DATA + "/cp.ckpt"
 NUM_MEMBERS = 5
@@ -85,18 +83,22 @@ NUEstimator = NeighborhoodUncertaintyClassifier(model, nuc_xtrain, nuc_ytrain, n
 NUEstimator_on_train = NeighborhoodUncertaintyClassifier(model, x, y, x_val, y_val, x_test,
                                                          path_uncertainty_model=path_uncertainty_model_on_train)
 
-methods = ["MCdrop SE", "MCdrop MI",
+methods = ["Softmax", "MCdrop SE", "MCdrop MI",
            "Bag SE", "Bag MI", "Rand SE", "Rand MI",
            "DataAug SE", "DataAug MI",
-           "NUC_train", "NUC_valid", "Softmax"]
+           "NUC_train", "NUC_valid"]
 
 y_pred_drop = MCEstimator.get_ensemble_prediction()
 y_pred_bag = BaEstimator.get_ensemble_prediction()
 y_pred_aug = DAEstimator.get_ensemble_prediction()
 y_pred_rand = RISEstimator.get_ensemble_prediction()
-preds = [y_pred_drop, y_pred_drop, y_pred_bag, y_pred_bag, y_pred_rand, y_pred_rand,
+
+preds = [y_pred,
+         y_pred_drop, y_pred_drop,
+         y_pred_bag, y_pred_bag,
+         y_pred_rand, y_pred_rand,
          y_pred_aug, y_pred_aug,
-         y_pred, y_pred, y_pred]
+         y_pred, y_pred]
 
 soft_ent_uncert_test = tfd.Categorical(probs=model.predict(x_test, verbose=0)).entropy().numpy()
 
@@ -110,12 +112,12 @@ aug_se = DAEstimator.uncertainties_shannon_entropy()
 aug_mi = DAEstimator.uncertainties_mutual_information()
 
 # make certainties between 0 and 1
-certainties = [1 - mcdr_se/tf.reduce_max(mcdr_se), 1 - mcdr_mi/tf.reduce_max(mcdr_mi),
+certainties = [1 - soft_ent_uncert_test/tf.reduce_max(soft_ent_uncert_test),
+               1 - mcdr_se/tf.reduce_max(mcdr_se), 1 - mcdr_mi/tf.reduce_max(mcdr_mi),
                1 - bag_se/tf.reduce_max(bag_se), 1 - bag_mi/tf.reduce_max(bag_mi),
                1 - rand_se/tf.reduce_max(rand_se), 1 - rand_mi/tf.reduce_max(rand_mi),
                1 - aug_se/tf.reduce_max(aug_se), 1 - aug_mi/tf.reduce_max(aug_mi),
                NUEstimator_on_train.certainties, NUEstimator.certainties,
-               1 - soft_ent_uncert_test/tf.reduce_max(soft_ent_uncert_test)
                ]
 
 print(methods)
