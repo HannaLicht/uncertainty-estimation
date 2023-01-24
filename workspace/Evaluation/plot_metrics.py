@@ -1,3 +1,5 @@
+import re
+
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from uncertainty.calibration_classification import get_normalized_certainties
@@ -6,24 +8,24 @@ sys.path.append("/home/urz/hlichten")
 sys.path.append("/home/hanna/Schreibtisch/Ingenieurinformatik VW/Igenieurinformatik/BA/uncertainty-estimation/workspace")
 print(sys.path)
 
-from functions import CNN, get_train_and_test_data, split_validation_from_train
+from functions import CNN, get_train_and_test_data, split_validation_from_train, build_effnet
 from uncertainty.MC_Dropout import MCDropoutEstimator
 from uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentationEns, RandomInitShuffleEns
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
-DATA = "cifar10_100"
-MODEL = "CNN"
-CHECKPOINT_PATH = "../models/classification/" + MODEL + "_" + DATA + "/cp.ckpt"
+DATA = "cifar10"
+MODEL_NAME = "CNN_cifar10_100"
 NUM_MEMBERS = 5
-THRESHOLDS = [.5, .55, .6, .65, .7, .75, .8, .85, .9, .95]
+THRESHOLDS = [.5, .55, .6, .65, .7, .75, .8, .85, .9, .95, .99]
 
-path_to_bagging_ens = ENSEMBLE_LOCATION + "/bagging/" + MODEL + "_" + DATA
-path_to_dataAug_ens = ENSEMBLE_LOCATION + "/data_augmentation/" + MODEL + "_" + DATA
-path_to_randInitShuffle_ens = ENSEMBLE_LOCATION + "/rand_initialization_shuffle/" + MODEL + "_" + DATA
-path_uncertainty_model = "../models/classification/uncertainty_model/" + DATA + "/cp.ckpt"
-path_uncertainty_model_on_train = "../models/classification/uncertainty_model/trained_on_traindata/" + DATA + "/cp.ckpt"
+path_to_bagging_ens = ENSEMBLE_LOCATION + "/bagging/" + MODEL_NAME
+path_to_dataAug_ens = ENSEMBLE_LOCATION + "/data_augmentation/" + MODEL_NAME
+path_to_randInitShuffle_ens = ENSEMBLE_LOCATION + "/rand_initialization_shuffle/" + MODEL_NAME
+model_path = "../models/classification/" + MODEL_NAME + "/cp.ckpt"
+path_uncertainty_model = "../models/classification/uncertainty_model/" + MODEL_NAME + "/cp.ckpt"
+path_uncertainty_model_on_train = "../models/classification/uncertainty_model/trained_on_traindata/" + MODEL_NAME + "/cp.ckpt"
 
 
 class Evaluator:
@@ -88,24 +90,23 @@ class Evaluator:
         except ZeroDivisionError:
             return None
 
-    def accuracy(self, groups):
+    '''def accuracy(self, groups):
         """
         ratio of the sum of correct uncertainties (TC+TU) to all predictions made by the model
         :param groups: True Uncertain (TU), True Certain (TC), False Uncertain (FU), False Certain (FC)
         :return: certainty accuracy
         """
         TU, TC, FU, FC = groups
-        return (TU+TC)/(TU+TC+FC+FU)
+        return (TU+TC)/(TU+TC+FC+FU)'''
 
     def results(self):
-        accs, preci, speci, rec = [], [], [], []
+        preci, speci, rec = [], [], []
         for tr in THRESHOLDS:
             gr = self.make_groups(tr)
-            accs.append(self.accuracy(gr))
             preci.append(self.precision(gr))
             speci.append(self.specificity(gr))
             rec.append(self.recall(gr))
-        return accs, preci, speci, rec
+        return preci, speci, rec
 
 
 def optimal_certainties(lbls, preds):
@@ -132,20 +133,70 @@ def subplot_evaluation(values, eval_metric: str, method: str):
     plt.ylabel(eval_metric)
 
 
-model = CNN(classes=100 if DATA == "cifar100" else 10)
-model.load_weights(CHECKPOINT_PATH)
+def decor_plot(ax):
+    plt.ylim(-0.02, 1.1)
+    plt.xlim(-0.02, 1.1)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_position('zero')
+    ax.spines['bottom'].set_position('zero')
+    ax.arrow(x=0, y=0, dx=1.05, dy=0, head_width=0.02, head_length=0.06, fc='black', ec='black', lw=0.2)
+    ax.arrow(x=0, y=0, dx=0, dy=1.05, head_width=0.02, head_length=0.06, fc='black', ec='black', lw=0.2)
 
-x, y, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("cifar10" if DATA == "cifar10_1000" or
-                                                                                       DATA == "cifar10_10000" or
-                                                                                       DATA == "cifar10_100" else DATA,
-                                                                          validation_test_split=True)
 
-if DATA == "cifar10_1000":
-    x, y = x[:1000], y[:1000]
-elif DATA == "cifar10_10000":
-    x, y = x[:10000], y[:10000]
-elif DATA == "cifar10_100":
-    x, y = x[:100], y[:100]
+def plot_roc_and_pr_curves(results_metrics, labels):
+    plt.figure(figsize=(9, 3.5))
+    #rec_good, pr_good = tf.concat((rec_good, [0.]), axis=0), tf.concat((pr_good, [1.]), axis=0)
+
+    ax = plt.subplot(1, 2, 1)
+    plt.title("ROC-Kurven")
+    for pre, spe, rec in results_metrics:
+        fpr = 1 - spe
+        plt.plot(fpr, rec)
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    decor_plot(ax)
+
+    ax = plt.subplot(1, 2, 2)
+    plt.title("PR-Kurven")
+    for (pre, spe, rec), lbl in zip(results_metrics, labels):
+        plt.plot(rec, pre, label=lbl)
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    decor_plot(ax)
+
+    plt.legend(bbox_to_anchor=(1, 0.35))
+    plt.savefig("../plots/roc_and_pr_curve.pdf")
+    plt.show()
+
+
+def plot_pre_spe_rec(results_metrics, labels):
+    model_name = MODEL_NAME.replace('_', ' ')
+    plt.figure(figsize=(9, 2.8))
+    plt.suptitle(model_name + " ---- " + DATA, fontsize=14)
+    plt.subplot(1, 3, 1)
+    for i, res in enumerate(results_metrics):
+        subplot_evaluation(res[0], "Uncertainty Precision", labels[i])
+    plt.subplot(1, 3, 2)
+    for i, res in enumerate(results_metrics):
+        subplot_evaluation(res[1], "Uncertainty Specificity", labels[i])
+    plt.subplot(1, 3, 3)
+    for i, res in enumerate(results_metrics):
+        subplot_evaluation(res[2], "Uncertainty Recall", labels[i])
+    plt.legend(loc="lower right")
+    plt.savefig("../plots/pre_spe_rec.pdf")
+    plt.show()
+
+
+x, y, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data(DATA, validation_test_split=True)
+
+model = build_effnet(num_classes) if MODEL_NAME == "effnetb3" else CNN(classes=num_classes)
+model.load_weights(model_path)
+
+num_data = None
+if re.match('CNN_cifar10_.*', MODEL_NAME):
+    num_data = int(MODEL_NAME.replace('CNN_cifar10_', ""))
+    x, y = x[:num_data], y[:num_data]
 
 lbls = tf.math.argmax(y_test, axis=-1).numpy()
 y_pred = tf.math.argmax(model.predict(x_test), axis=-1).numpy()
@@ -155,21 +206,18 @@ print("Accuracy on train dataset: ", acc)
 _, acc = model.evaluate(x_test, y_test)
 print("Accuracy on test dataset: ", acc)
 
-model_name = MODEL + "_cifar10" if DATA == "cifar10_1000" or DATA == "cifar10_10000" or DATA == "cifar10_100" \
-    else MODEL + "_" + DATA
-
 val = True
 MCEstimator = MCDropoutEstimator(model, x_test, num_classes, T=50, xval=x_val, yval=y_val)
-DAEstimator = DataAugmentationEns(x, y, x_test, num_classes, model_name=model_name,
+DAEstimator = DataAugmentationEns(x_test, num_classes, model_name=MODEL_NAME,
                                   path_to_ensemble=path_to_dataAug_ens, num_members=NUM_MEMBERS,
                                   X_val=x_val, y_val=y_val, val=val)
-RISEstimator = RandomInitShuffleEns(x, y, x_test, num_classes, model_name=model_name,
+RISEstimator = RandomInitShuffleEns(x_test, num_classes, model_name=MODEL_NAME,
                                     path_to_ensemble=path_to_randInitShuffle_ens, num_members=NUM_MEMBERS,
                                     X_val=x_val, y_val=y_val, val=val)
-BaEstimator = BaggingEns(x, y, x_test, num_classes, model_name=model_name, path_to_ensemble=path_to_bagging_ens,
+BaEstimator = BaggingEns(x_test, num_classes, model_name=MODEL_NAME, path_to_ensemble=path_to_bagging_ens,
                          num_members=NUM_MEMBERS, X_val=x_val, y_val=y_val, val=val)
 
-if MODEL == "effnet":
+if MODEL_NAME == "effnet":
     nuc_xtrain, nuc_ytrain, nuc_xval, nuc_yval = split_validation_from_train(x_val, y_val, num_classes,
                                                                              num_imgs_per_class=2)
 else:
@@ -207,26 +255,11 @@ rand_mi = RISEstimator.normalized_certainties_mutual_information()
 aug_se = DAEstimator.normalized_certainties_shannon_entropy()
 aug_mi = DAEstimator.normalized_certainties_mutual_information()
 
-certainties = [mcdr_se, mcdr_mi, bag_se, bag_mi, rand_se, rand_mi,
-               aug_se, aug_mi,
-               NUEstimator.certainties,
+certainties = [mcdr_se, mcdr_mi, bag_se, bag_mi, rand_se, rand_mi, aug_se, aug_mi,
+               NUEstimator_on_train.certainties, NUEstimator.certainties,
                softmax_entropy]
 
 results = [Evaluator(lbls, pred, certainty).results() for certainty, pred in zip(certainties, preds)]
 
-plt.figure(figsize=(10, 10))
-plt.suptitle(MODEL + " ---- " + DATA, fontsize=14)
-plt.subplot(2, 2, 1)
-for i, res in enumerate(results):
-    subplot_evaluation(res[0], "Uncertainty Accuracy", methods[i])
-plt.subplot(2, 2, 2)
-for i, res in enumerate(results):
-    subplot_evaluation(res[1], "Uncertainty Precision", methods[i])
-plt.subplot(2, 2, 3)
-for i, res in enumerate(results):
-    subplot_evaluation(res[2], "Uncertainty Specificity", methods[i])
-plt.subplot(2, 2, 4)
-for i, res in enumerate(results):
-    subplot_evaluation(res[3], "Uncertainty Recall", methods[i])
-plt.legend(loc="lower right")
-plt.show()
+plot_pre_spe_rec(results, methods)
+plot_roc_and_pr_curves(results, methods)

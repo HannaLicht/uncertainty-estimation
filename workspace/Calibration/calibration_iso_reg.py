@@ -30,11 +30,11 @@ for count, (model_name, title) in enumerate(zip(["CNN_cifar10_100", "CNN_cifar10
     if method == "mc_drop":
         estimator = MCDropoutEstimator(model, xtest, cl, xval=xval, yval=yval)
     elif method == "bagging":
-        estimator = BaggingEns(xtrain, ytrain, xtest, cl, model_name, path, xval, yval, val=True)
+        estimator = BaggingEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
     elif method == "data_augmentation":
-        estimator = DataAugmentationEns(xtrain, ytrain, xtest, cl, model_name, path, xval, yval, val=True)
+        estimator = DataAugmentationEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
     elif method == "rand_initialization_shuffle":
-        estimator = RandomInitShuffleEns(xtrain, ytrain, xtest, cl, model_name, path, xval, yval, val=True)
+        estimator = RandomInitShuffleEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
     else:
         raise NotImplementedError
 

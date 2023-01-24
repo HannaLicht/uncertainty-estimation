@@ -1,4 +1,6 @@
 import random
+import re
+
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from matplotlib import pyplot as plt
@@ -21,7 +23,8 @@ class Ensemble(SamplingBasedEstimator):
 
     members = []
 
-    def __init__(self, X_train, y_train, X, num_classes, model_name, path_to_ensemble="", X_val=None, y_val=None,
+    def __init__(self, X, num_classes, path_to_ensemble="",
+                 X_train=None, y_train=None, X_val=None, y_val=None, model_name=None,
                  optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5, val=False):
 
         self.X, self.num_classes = X, num_classes
@@ -33,6 +36,8 @@ class Ensemble(SamplingBasedEstimator):
                             range(num_members)]
             self.predict()
         except:
+            assert X_train is not None and y_train is not None and X_val is not None and y_val is not None \
+                   and model_name is not None
             print("Ensembe could not be found at path: " + str(path_to_ensemble))
             print("Ensemble will be trained now")
             self.init_new_ensemble(path_to_ensemble, X_train, y_train, X_val, y_val, model_name, num_members,
@@ -54,13 +59,13 @@ class Ensemble(SamplingBasedEstimator):
         self.init_members(model_name, num_members, optimizer, loss, metrics)
 
         rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
-        early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=20, restore_best_weights=True)
+        early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=20, restore_best_weights=True)
 
         # train ensemble members
         for index, (model, imgs, lbls) in enumerate(zip(self.members, train_imgs, train_lbls)):
             model.fit(imgs, lbls, validation_data=(X_val, y_val), epochs=1000,
                       batch_size=128 if len(lbls) >= 1000 else 32, callbacks=[early_stop, rlrop])
-            if path_to_ensemble is not "":
+            if path_to_ensemble != "":
                 model.save(path_to_ensemble + "/member_" + str(index))
 
         self.predict()
@@ -68,7 +73,7 @@ class Ensemble(SamplingBasedEstimator):
     def init_members(self, model_name, num_members, optimizer, loss, metrics):
         if model_name == "simple_seq_model":
             self.members = [create_simple_model() for _ in range(num_members)]
-        elif model_name == "CNN_cifar10":
+        elif re.match("CNN_cifar10_.*", model_name) or model_name == "CNN_cifar10":
             self.members = [CNN(classes=10) for _ in range(num_members)]
             for member in self.members:
                 member.load_weights("../models/classification/CNN_cifar100/cp.ckpt")
@@ -92,10 +97,11 @@ class Ensemble(SamplingBasedEstimator):
 
 class BaggingEns(Ensemble):
 
-    def __init__(self, X_train, y_train, X, num_classes, model_name, path_to_ensemble="", X_val=None, y_val=None,
+    def __init__(self, X, num_classes, path_to_ensemble="",
+                 X_train=None, y_train=None, X_val=None, y_val=None, model_name=None,
                  optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5, val=False):
         self.estimator_name = "Ensemble - Bagging"
-        super().__init__(X_train, y_train, X, num_classes, model_name, path_to_ensemble, X_val, y_val,
+        super().__init__(X, num_classes, path_to_ensemble, X_train, y_train, X_val, y_val, model_name,
                          optimizer, loss, metrics, num_members, val)
 
     def prepare_data(self, xtrain, ytrain, num_members):
@@ -110,23 +116,24 @@ class BaggingEns(Ensemble):
 
 class RandomInitShuffleEns(Ensemble):
 
-    def __init__(self, X_train, y_train, X, num_classes, model_name, path_to_ensemble="", X_val=None, y_val=None,
+    def __init__(self, X, num_classes, path_to_ensemble="",
+                 X_train=None, y_train=None, X_val=None, y_val=None, model_name=None,
                  optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5, val=False):
         self.estimator_name = "Ensemble - Random Initialization & Data Shuffle"
-        super().__init__(X_train, y_train, X, num_classes, model_name, path_to_ensemble, X_val, y_val,
+        super().__init__(X, num_classes, path_to_ensemble, X_train, y_train, X_val, y_val, model_name,
                          optimizer, loss, metrics, num_members, val)
 
     def prepare_data(self, xtrain, ytrain, num_members):
-        return [xtrain for _ in range(num_members)], \
-            [tf.reshape(ytrain, (-1, self.num_classes)) for _ in range(num_members)]
+        return [xtrain for _ in range(num_members)], [ytrain for _ in range(num_members)]
 
 
 class DataAugmentationEns(Ensemble):
 
-    def __init__(self, X_train, y_train, X, num_classes, model_name, path_to_ensemble="", X_val=None, y_val=None,
+    def __init__(self, X, num_classes, path_to_ensemble="",
+                 X_train=None, y_train=None, X_val=None, y_val=None, model_name=None,
                  optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5, val=False):
         self.estimator_name = "Ensemble - Data Augmentation"
-        super().__init__(X_train, y_train, X, num_classes, model_name, path_to_ensemble, X_val, y_val,
+        super().__init__(X, num_classes, path_to_ensemble, X_train, y_train, X_val, y_val, model_name,
                          optimizer, loss, metrics, num_members, val)
 
     def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_val, y_val, model_name, num_members,
@@ -141,12 +148,12 @@ class DataAugmentationEns(Ensemble):
         self.init_members(model_name, num_members, optimizer, loss, metrics)
 
         rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
-        early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=20, restore_best_weights=True)
+        early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=20, restore_best_weights=True)
 
         # train ensemble members
         for index, model in enumerate(self.members):
             model.fit(data_generator, validation_data=(X_val, y_val), epochs=1000, callbacks=[early_stop, rlrop])
-            if path_to_ensemble is not "":
+            if path_to_ensemble != "":
                 model.save(path_to_ensemble + "/member_" + str(index))
 
         self.predict()

@@ -37,9 +37,9 @@ def mean(l):
 
 def train_base_model(checkpoint_path_old, checkpoint_path_new, X_train, y_train, X_test, y_test):
     """
-    :param checkpoint_path_old: path of pretrained model cifar100
+    :param checkpoint_path_old: path of pretrained model CNN_cifar100
     :param checkpoint_path_new: path to save model further trained on the 'amount_of_data' first train data of
-                                cifar10
+                                CNN_cifar10
     :return:
     """
     model = CNN(classes=10)
@@ -105,8 +105,8 @@ def retrain_with_ensemble(ensemble, metric):
             data = json.load(json_file)
 
         for i in range(times_images_added):
-            uncertainty_estimator = ensemble(retrainer.X_train, retrainer.y_train, retrainer.X_left, num_classes=10,
-                                             model_name="CNN_cifar10",
+            uncertainty_estimator = ensemble(retrainer.X_left, num_classes=10, model_name="CNN_cifar10",
+                                             X_train=retrainer.X_train, y_train=retrainer.y_train,
                                              X_val=retrainer.X_test, y_val=retrainer.y_test)
 
             if metric == "SE":
@@ -164,8 +164,6 @@ def retrain_with_nuc():
         yval = retrainer.y_test[int(4*len(retrainer.y_test) / 5):]
 
         for i in range(times_images_added):
-            #uncertainty_estimator = NeighborhoodUncertaintyClassifier(model, retrainer.X_train, retrainer.y_train,
-                 #                                                  retrainer.X_test,retrainer.y_test, retrainer.X_left)
             uncertainty_estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval,
                                                                       retrainer.X_left)
             acc, model = retrainer.retrain(model, NUM_IMAGES, uncertainty_estimator.certainties)
@@ -214,7 +212,7 @@ def retrain_with_random_data():
                 json.dump(data, json_file, indent=4)
 
 
-# comment if model already trained on STARTDATA of cifar10 training data
+# comment if model already trained on STARTDATA of CNN_cifar10 training data
 #train_base_model(PATH_TO_PRETRAINED_CNN_100, PATH_TO_PRETRAINED_CNN_10,
  #                xtrain, tf.keras.utils.to_categorical(ytrain.reshape((-1)), 10),
   #               xtest, tf.keras.utils.to_categorical(ytest.reshape((-1)), 10))

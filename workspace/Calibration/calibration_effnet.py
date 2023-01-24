@@ -5,51 +5,51 @@ import sys
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 sys.path.append("/home/urz/hlichten")
-from functions import build_effnet, CNN
+from functions import build_effnet, CNN, split_validation_from_train, get_train_and_test_data
 from uncertainty.MC_Dropout import MCDropoutEstimator
 from uncertainty.Ensemble import BaggingEns, DataAugmentationEns, RandomInitShuffleEns, ENSEMBLE_LOCATION
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
-from uncertainty.calibration_classification import reliability_diagram, uncertainty_diagram, expected_calibration_error, \
-    plot_regression, get_normalized_certainties
-from functions import get_train_and_test_data, build_effnet
+from uncertainty.calibration_classification import reliability_diagram, expected_calibration_error, get_normalized_certainties
+
 
 
 fig = plt.figure(figsize=(9, 5.6))
 
-#xtrain, ytrain, xval, yval, xtest, ytest, cl = get_train_and_test_data("cars196",
- #                                                                      validation_test_split=True)
-#model = build_effnet(cl)
-#model.load_weights("../models/classification/effnetb3/cp.ckpt")
+xtrain, ytrain, xval, yval, xtest, ytest, cl = get_train_and_test_data("cars196",
+                                                                       validation_test_split=True)
+model = build_effnet(cl)
+model.load_weights("../models/classification/effnetb3/cp.ckpt")
 
-# test with CNN cifar10
-xtrain, ytrain, xval, yval, xtest, ytest, cl = get_train_and_test_data("cifar10",
+# test with CNN CNN_cifar10
+'''xtrain, ytrain, xval, yval, xtest, ytest, cl = get_train_and_test_data("cifar10",
                                                                        validation_test_split=True)
 model = CNN(classes=cl)
-model.load_weights("../models/classification/CNN_cifar10/cp.ckpt")
+model.load_weights("../models/classification/CNN_cifar10/cp.ckpt")'''
 
 _, acc = model.evaluate(xtest, ytest, verbose=2)
 print("Test accuracy: {:5.2f}%".format(100 * acc))
 
-#model_name = "effnetb3"
-model_name = "CNN_cifar10"
+model_name = "effnetb3"
+#model_name = "CNN_cifar10"
 sampling_estimators = [MCDropoutEstimator(model, xtest, cl, xval=xval, yval=yval),
-                       BaggingEns(xtrain, ytrain, xtest, cl, model_name,
-                       ENSEMBLE_LOCATION + "/bagging/" + model_name, xval, yval, val=True),
-                       DataAugmentationEns(xtrain, ytrain, xtest, cl, model_name,
-                       ENSEMBLE_LOCATION + "/data_augmentation/" + model_name, xval, yval, val=True),
-                       RandomInitShuffleEns(xtrain, ytrain, xtest, cl, model_name,
-                       ENSEMBLE_LOCATION + "/rand_initialization_shuffle/" + model_name, xval, yval, val=True),
+                       BaggingEns(xtest, cl, ENSEMBLE_LOCATION + "/bagging/" + model_name,
+                                  X_val=xval, y_val=yval, val=True),
+                       DataAugmentationEns(xtest, cl, ENSEMBLE_LOCATION + "/data_augmentation/" + model_name,
+                                           X_val=xval, y_val=yval, val=True),
+                       RandomInitShuffleEns(xtest, cl, ENSEMBLE_LOCATION + "/rand_initialization_shuffle/" + model_name,
+                                            X_val=xval, y_val=yval, val=True)
                        ]
 
-'''
+
 xtrain_nuc, ytrain_nuc, xval_nuc, yval_nuc = split_validation_from_train(xval, yval, cl, num_imgs_per_class=2)
-nuc = NeighborhoodUncertaintyClassifier(model, xtrain_nuc, ytrain_nuc, xval_nuc, yval_nuc, xtest_nuc,
-                                        "../../models/classification/uncertainty_model/cars196/cp.ckpt").certainties
-'''
-xtrain_nuc, ytrain_nuc = xval[:int(4*len(xval) / 5)], yval[:int(4*len(yval) / 5)]
+nuc = NeighborhoodUncertaintyClassifier(model, xtrain_nuc, ytrain_nuc, xval_nuc, yval_nuc, xtest,
+                                        "../models/classification/uncertainty_model/effnetb3/cp.ckpt").certainties
+
+'''xtrain_nuc, ytrain_nuc = xval[:int(4*len(xval) / 5)], yval[:int(4*len(yval) / 5)]
 xval_nuc, yval_nuc = xval[int(4*len(xval) / 5):], yval[int(4*len(yval) / 5):]
 nuc = NeighborhoodUncertaintyClassifier(model, xtrain_nuc, ytrain_nuc, xval_nuc, yval_nuc, xtest,
-                                        "../models/classification/uncertainty_model/cifar10/cp.ckpt").certainties
+                                        "../models/classification/uncertainty_model/CNN_cifar10/cp.ckpt").certainties'''
+
 soft_ent_uncert_test = tfd.Categorical(probs=model.predict(xtest, verbose=0)).entropy().numpy()
 soft_ent_uncert_val = tfd.Categorical(probs=model.predict(xval, verbose=0)).entropy().numpy()
 softmax_entropy = get_normalized_certainties(model.predict(xval, verbose=0), yval,
@@ -68,8 +68,8 @@ for count, title in enumerate(titles):
         certs_mi = sampling_estimators[count].normalized_certainties_mutual_information()
 
         reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=out, certainties=certs_se,
-                            label_perfectly_calibrated=False, num_bins=15, method="SE")
-        reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=out, num_bins=15, certainties=certs_mi,
+                            label_perfectly_calibrated=False, num_bins=10, method="SE")
+        reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=out, num_bins=10, certainties=certs_mi,
                             label_perfectly_calibrated=False, color="green", method="MI")
 
         ece_se = expected_calibration_error(tf.argmax(ytest, axis=-1), out, certs_se).numpy()
@@ -79,14 +79,14 @@ for count, title in enumerate(titles):
 
     elif count == 4:
         reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=model_pred, certainties=nuc,
-                            label_perfectly_calibrated=False, num_bins=15, color="tomato", method="Certainty Score")
+                            label_perfectly_calibrated=False, num_bins=10, color="tomato", method="Certainty Score")
 
         ece = expected_calibration_error(tf.argmax(ytest, axis=-1), model_pred, nuc).numpy()
         plt.text(0.02, 0.95, "ECE: {:.3f}".format(ece), color="brown", weight="bold")
 
     else:
         reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=model_pred, certainties=softmax_entropy,
-                            label_perfectly_calibrated=False, color="chocolate", num_bins=15, method="SE Softmax")
+                            label_perfectly_calibrated=False, color="chocolate", num_bins=10, method="SE Softmax")
 
         ece = expected_calibration_error(tf.argmax(ytest, axis=-1), model_pred, softmax_entropy).numpy()
         plt.text(0.02, 0.95, "ECE: {:.3f}".format(ece), color="brown", weight="bold")

@@ -1,8 +1,5 @@
 import sys
 import re
-
-from matplotlib import pyplot as plt
-
 sys.path.append("/home/urz/hlichten")
 from uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentationEns, RandomInitShuffleEns
 from functions import get_train_and_test_data
@@ -10,7 +7,7 @@ import tensorflow as tf
 
 NUM_MEMBERS = 5
 MODEL = "effnetb3"
-METHOD = "data_augmentation"
+METHOD = "rand_initialization_shuffle"
 DATA = "cars196"
 
 path_to_ensemble = ENSEMBLE_LOCATION + "/" + METHOD + "/" + MODEL
@@ -25,20 +22,14 @@ if re.match('CNN_cifar10_.*', MODEL):
     y_train = y_train[:num_data]
 
 if METHOD == "bagging":
-    estimator = BaggingEns(
-        X_train, y_train, X_test, classes, X_val=X_val, y_val=y_val,
-        model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=True
-    )
+    estimator = BaggingEns(X_test, classes, X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val,
+                           model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=True)
 elif METHOD == "data_augmentation":
-    estimator = DataAugmentationEns(
-        X_train, y_train, X_test, classes, X_val=X_val, y_val=y_val,
-        model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=True
-    )
+    estimator = DataAugmentationEns(X_test, classes, X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val,
+                           model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=True)
 elif METHOD == "rand_initialization_shuffle":
-    estimator = RandomInitShuffleEns(
-        X_train, y_train, X_test, classes, X_val=X_val, y_val=y_val,
-        model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=True
-    )
+    estimator = RandomInitShuffleEns(X_test, classes, X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val,
+                           model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=True)
 else:
     raise NotImplementedError
 

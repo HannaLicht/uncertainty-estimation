@@ -1,45 +1,5 @@
 Performance NUC per k:
 
-CNN cifar10 (first 100)
-
-K           | 5     | 10    | 25    | 50    | 100
-AUROC train | 0.574 | 0.517 | 0.502 | 0.473 | 0.483
-AUPR  train | 0.399 | 0.347 | 0.337 | 0.344 | 0.339
-AUROC val   | 0.735 | 0.747 | 0.756 | 0.762 | 0.766
-AUPR  val   | 0.584 | 0.602 | 0.609 | 0.623 | 0.623
-
-CNN cifar10 (first 1000)
-
-K           | 5     | 10    | 25    | 50    | 100
-AUROC train | 0.699 | 0.708 | 0.713 | 0.691 | 0.696
-AUPR  train | 0.702 | 0.719 | 0.727 | 0.711 | 0.712
-AUROC val   | 0.739 | 0.745 | 0.750 | 0.751 | 0.750
-AUPR  val   | 0.756 | 0.764 | 0.768 | 0.770 | 0.769
-
-CNN cifar10 (first 10000)
-
-K           | 5     | 10    | 25    | 50    | 100
-AUROC train | 0.776 | 0.761 | 0.766 | 0.766 | 0.751
-AUPR  train | 0.863 | 0.849 | 0.852 | 0.853 | 0.844
-AUROC val   | 0.780 | 0.778 | 0.773 | 0.772 | 0.769
-AUPR  val   | 0.867 | 0.863 | 0.861 | 0.863 | 0.862
-
-CNN cifar10
-
-K           | 5     | 10    | 25    | 50    | 100
-AUROC train | 0.827 | 0.826 | 0.823 | 0.814 | 0.816
-AUPR  train | 0.927 | 0.927 | 0.925 | 0.921 | 0.919
-AUROC val   | 0.825 | 0.823 | 0.808 | 0.804 | 0.805
-AUPR  val   | 0.926 | 0.926 | 0.918 | 0.917 | 0.918
-
-CNN cifar100
-
-K           | 5     | 10    | 25    | 50    | 100
-AUROC train | 0.812 | 0.802 | 0.805 | 0.799 | 0.803
-AUPR  train | 0.781 | 0.771 | 0.772 | 0.765 | 0.767
-AUROC val   | 0.804 | 0.803 | 0.800 | 0.787 | 0.769
-AUPR  val   | 0.769 | 0.767 | 0.764 | 0.749 | 0.731
-
 EfficientNet Cars196
 
 K           | 5     | 10    | 25    | 50    | 100
@@ -150,6 +110,9 @@ Neighborhood Uncert val     | 0.803 | 0.768
 
 
 EfficientNetB0 trained on Imagenet:
+
+accuracy on traindata = 0.9988
+accuracy on testdata = 0.6202
 
                             | AUROC | AUPR
 Softmax                     |       |

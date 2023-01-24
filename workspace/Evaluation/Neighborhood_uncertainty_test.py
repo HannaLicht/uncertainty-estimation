@@ -1,3 +1,4 @@
+import json
 import re
 import sys
 sys.path.append("/home/urz/hlichten")
@@ -5,9 +6,12 @@ from functions import CNN, get_train_and_test_data, split_validation_from_train,
 import tensorflow as tf
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 
-model_name = "CNN_cifar100"
-data = "cifar100"
-use_validation_data = False
+RUNS = 4
+SAVE_OR_USE_SAVED = False
+
+model_name = "effnetb3"
+data = "cars196"
+use_validation_data = True
 
 checkpoint_path = "../models/classification/" + model_name + "/cp.ckpt"
 xtrain, ytrain, xval, yval, xtest, ytest, cl = get_train_and_test_data(data, validation_test_split=True)
@@ -22,16 +26,14 @@ if use_validation_data:
 else:
     pre_path_uncertainty_model = "../models/classification/uncertainty_model/trained_on_traindata/"
 
-path_uncertainty_model = pre_path_uncertainty_model + data + "/cp.ckpt"
+path_uncertainty_model = pre_path_uncertainty_model + model_name + "/cp.ckpt"
 model = CNN(classes=100 if model_name == "CNN_cifar100" else 10) if model_name != "effnetb3" else build_effnet(cl)
 model.load_weights(checkpoint_path)
 
 num_data = None
-if re.match('CNN_cifar10_.*', model_name):
+if re.match('CNN_cifar10_.*', model_name) and not use_validation_data:
     num_data = int(model_name.replace('CNN_cifar10_', ""))
-    path_uncertainty_model = pre_path_uncertainty_model + data + "_" + str(num_data) + "/cp.ckpt"
-    if not use_validation_data:
-        xtrain, ytrain = xtrain[:num_data], ytrain[:num_data]
+    xtrain, ytrain = xtrain[:num_data], ytrain[:num_data]
 
 
 model.evaluate(xtest, ytest)
@@ -55,35 +57,40 @@ estimator.plot_diagrams(y_lbls)
 print("score = ", estimator.certainty_score(y_lbls))
 
 
-# Test: which k is best
-auroc, aupr = [], []
-correct = (tf.argmax(ytest, axis=-1) == tf.argmax(model.predict(xtest), axis=-1).numpy())
+# Test: which k is best -> auroc, aupr
+incorrect = (tf.argmax(ytest, axis=-1) != tf.argmax(model.predict(xtest), axis=-1).numpy())
+name_method = "nuc_val" if use_validation_data else "nuc_train"
 
-for k in [5, 10, 25, 50, 100]:
-    if num_data is None:
-        path_uncertainty_model = pre_path_uncertainty_model + "different_k/" + str(k) + "/" + data + \
-                                 "/cp.ckpt"
-        if k == 10:
-            path_uncertainty_model = pre_path_uncertainty_model + data + "/cp.ckpt"
-    else:
-        path_uncertainty_model = pre_path_uncertainty_model + "different_k/" + str(k) + "/" + data + "_" \
-                                 + str(num_data) + "/cp.ckpt"
-        if k == 10:
-            path_uncertainty_model = pre_path_uncertainty_model + data + "_" + str(num_data) + \
-                                     "/cp.ckpt"
+for _ in range(RUNS):
+    auroc, aupr = [], []
 
-    estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest,
-                                                  path_uncertainty_model=path_uncertainty_model, k=k)
-    m = tf.keras.metrics.AUC(curve='ROC')
-    m.update_state(correct, estimator.certainties)
-    auroc.append(m.result().numpy())
+    for k in [5, 10, 25, 50, 100]:
+        path_uncertainty_model = None
+        if SAVE_OR_USE_SAVED:
+            path_uncertainty_model = pre_path_uncertainty_model + "different_k/" + str(k) + "/" + model_name +"/cp.ckpt"
+            if k == 10:
+                path_uncertainty_model = pre_path_uncertainty_model + model_name + "/cp.ckpt"
 
-    m = tf.keras.metrics.AUC(curve="PR")
-    m.update_state(correct, estimator.certainties)
-    aupr.append(m.result().numpy())
+        estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest,
+                                                      path_uncertainty_model=path_uncertainty_model, k=k)
+        m = tf.keras.metrics.AUC(curve='ROC')
+        m.update_state(incorrect, 1-estimator.certainties)
+        auroc.append(m.result().numpy())
 
-print("AUROCs: ", auroc)
-print("AUPRs: ", aupr)
+        m = tf.keras.metrics.AUC(curve="PR")
+        m.update_state(incorrect, 1-estimator.certainties)
+        aupr.append(m.result().numpy())
+
+    print("AUROCs: ", auroc)
+    print("AUPRs: ", aupr)
+
+    for i, (roc, pr) in enumerate(zip(auroc, aupr)):
+        with open('results_auroc_aupr.json') as json_file:
+            data = json.load(json_file)
+            data[name_method][model_name]["auroc"][i] = data[name_method][model_name]["auroc"][i] + [roc.item()]
+            data[name_method][model_name]["aupr"][i] = data[name_method][model_name]["aupr"][i] + [pr.item()]
+        with open('results_auroc_aupr.json', 'w') as json_file:
+            json.dump(data, json_file, indent=4)
 
 
 

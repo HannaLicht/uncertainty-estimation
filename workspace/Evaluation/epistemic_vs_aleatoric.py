@@ -31,7 +31,7 @@ for count, model_name in enumerate(["CNN_cifar10_1000", "CNN_cifar10_10000", "CN
     elif METHOD == "bagging":
         path_to_ensemble = ENSEMBLE_LOCATION + "/bagging/" + model_name
         X_train, y_train, x, y, classes = get_train_and_test_data("cifar10")
-        estimator = BaggingEns(X_train, y_train, x, classes, model_name=model_name,
+        estimator = BaggingEns(x, classes, model_name=model_name,
                                path_to_ensemble=path_to_ensemble, num_members=M)
     else:
         raise NotImplementedError

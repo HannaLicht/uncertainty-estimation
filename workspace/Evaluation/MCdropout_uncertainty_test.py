@@ -2,27 +2,28 @@ import re
 import keras.applications.efficientnet as efn
 import sys
 sys.path.append("/home/urz/hlichten")
-from functions import CNN, get_train_and_test_data
+from functions import CNN, get_train_and_test_data, build_effnet
 from uncertainty.MC_Dropout import MCDropoutEstimator
 import tensorflow as tf
 
 T = 50
-MODEL = "effnet"
+MODEL = "effnetb3"
 CHECKPOINT_PATH = "../models/classification/" + MODEL + "/cp.ckpt"
 
 if MODEL == "CNN_cifar100":
-    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("cifar100")
+    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("CNN_cifar100", validation_test_split=True)
     model = CNN(classes=100)
     model.load_weights(CHECKPOINT_PATH)
     estimator = MCDropoutEstimator(model, x_test, num_classes, T, xval=x_val, yval=y_val)
 elif re.match("CNN_cifar10.*", MODEL):
-    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("cifar10", validation_test_split=True)
+    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("CNN_cifar10", validation_test_split=True)
     model = CNN(classes=10)
     model.load_weights(CHECKPOINT_PATH)
     estimator = MCDropoutEstimator(model, x_test, num_classes, T, xval=x_val, yval=y_val)
-elif MODEL == "effnet":
-    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("imagenet", validation_test_split=True)
-    eff = efn.EfficientNetB3(weights='imagenet')
+elif MODEL == "effnetb3":
+    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("cars196", validation_test_split=True)
+    eff = build_effnet(num_classes)
+    eff.load_weights(CHECKPOINT_PATH)
     estimator = MCDropoutEstimator(eff, x_test, num_classes, T, xval=x_val, yval=y_val)
 else:
     raise NotImplementedError

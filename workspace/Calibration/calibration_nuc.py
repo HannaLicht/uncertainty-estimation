@@ -6,7 +6,6 @@ from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifie
 from uncertainty.calibration_classification import reliability_diagram, expected_calibration_error
 from functions import get_train_and_test_data, CNN
 
-
 validation = True
 
 fig = plt.figure(figsize=(9, 2.8))
@@ -31,7 +30,7 @@ for count, model_name in enumerate(["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_
         path = "../models/classification/uncertainty_model/trained_on_traindata/"
 
     estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest,
-                                                  path + model_name.replace('CNN_', "") + "/cp.ckpt")
+                                                  path + model_name + "/cp.ckpt")
     plt.title("Gesamter Trainingsdatensatz" if model_name == "CNN_cifar10" else
                             model_name.replace('CNN_cifar10_', "") + " Trainingsdaten")
     reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=ypred, certainties=estimator.certainties,

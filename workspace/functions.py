@@ -143,7 +143,7 @@ def split_validation_from_train(xtrain, ytrain, num_classes, num_imgs_per_class)
             y_train.append(y)
 
     xval, yval = tf.reshape(xval, (-1, 300, 300, 3)), tf.reshape(yval, (-1, 196))
-    x_train, yt_rain = tf.reshape(x_train, (-1, 300, 300, 3)), tf.reshape(y_train, (-1, 196))
+    x_train, y_train = tf.reshape(x_train, (-1, 300, 300, 3)), tf.reshape(y_train, (-1, 196))
 
     return x_train, y_train, xval, yval
 
@@ -211,9 +211,8 @@ def get_train_and_test_data(data, validation_test_split=False):
         # https://keras.io/examples/vision/image_classification_efficientnet_fine_tuning/
         IMG_SIZE = 300
 
-        dataset_name = "cars196"
         (ds_train, ds_test), ds_info = tfds.load(
-            dataset_name, split=["train", "test"], with_info=True, as_supervised=True, shuffle_files=False
+            "cars196", split=["train", "test"], with_info=True, as_supervised=True, shuffle_files=False
         )
         NUM_CLASSES = ds_info.features["label"].num_classes
 

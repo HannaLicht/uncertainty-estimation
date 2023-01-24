@@ -23,7 +23,6 @@ class NeighborhoodUncertaintyClassifier:
         self.k = k
         self.model = model
         self.train_lbls = tf.argmax(ytrain, axis=-1)
-        self.xtrain = xtrain
         self.x = x
         self.dataset_train = tf.data.Dataset.from_tensor_slices((xtrain, self.train_lbls)).batch(evenly_split(xtrain))
         self.dataset_val = tf.data.Dataset.from_tensor_slices((xval, tf.argmax(yval, axis=-1))).batch(evenly_split(xval))

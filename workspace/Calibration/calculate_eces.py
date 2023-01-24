@@ -31,13 +31,13 @@ for model_name in ["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_cifar10_10000", "
         print(model_name + " ", ece)
         continue
     elif method == "bagging":
-        estimator = BaggingEns(xtrain, ytrain, xtest, cl, model_name, path, xval, yval, val=True)
+        estimator = BaggingEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
         ypred = estimator.p_ens
     elif method == "data_augmentation":
-        estimator = DataAugmentationEns(xtrain, ytrain, xtest, cl, model_name, path, xval, yval, val=True)
+        estimator = DataAugmentationEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
         ypred = estimator.p_ens
     elif method == "rand_initialization_shuffle":
-        estimator = RandomInitShuffleEns(xtrain, ytrain, xtest, cl, model_name, path, xval, yval, val=True)
+        estimator = RandomInitShuffleEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
         ypred = estimator.p_ens
     elif method == "nuc":
         path = "../models/classification/uncertainty_model/"

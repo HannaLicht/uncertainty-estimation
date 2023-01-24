@@ -24,9 +24,9 @@ for count, (method, title) in enumerate(zip(["data_augmentation", "rand_initiali
     if method == "mc_drop":
         estimator = MCDropoutEstimator(model, xtest, cl, xval=xval, yval=yval)
     elif method == "data_augmentation":
-        estimator = DataAugmentationEns(xtrain, ytrain, xtest, cl, "CNN_cifar10_100", path, xval, yval, val=True)
+        estimator = DataAugmentationEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
     elif method == "rand_initialization_shuffle":
-        estimator = RandomInitShuffleEns(xtrain, ytrain, xtest, cl, "CNN_cifar10_100", path, xval, yval, val=True)
+        estimator = RandomInitShuffleEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
     else:
         raise NotImplementedError
 
