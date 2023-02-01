@@ -1,9 +1,12 @@
 import random
 import json
 import sys
+
+import numpy as np
+
 sys.path.append("/home/urz/hlichten")
 print(sys.path)
-
+from functools import partial
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
@@ -14,8 +17,8 @@ from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifie
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
-STARTDATA = 1000
-NUM_IMAGES = 100
+STARTDATA = 10000
+NUM_IMAGES = 1000
 RUNS = 3
 PATH_TO_PRETRAINED_CNN_10 = "../models/classification/retrain/CNN_cifar10_" + str(STARTDATA) + "/cp.ckpt"
 PATH_TO_PRETRAINED_CNN_100 = "../models/classification/retrain/CNN_cifar100/cp.ckpt"
@@ -221,7 +224,7 @@ prepare_model().evaluate(xtest, tf.keras.utils.to_categorical(ytest.reshape((-1)
 # check whether the classes are balanced in train dataset
 print([list(ytrain).count(i) for i in range(10)])
 
-retrain_with_nuc()
+'''retrain_with_nuc()
 retrain_with_ensemble(DataAugmentationEns, "SE")
 retrain_with_ensemble(DataAugmentationEns, "MI")
 retrain_with_ensemble(RandomInitShuffleEns, "SE")
@@ -231,7 +234,7 @@ retrain_with_MCdrop("MI")
 retrain_with_softmax_entropy()
 retrain_with_random_data()
 retrain_with_ensemble(BaggingEns, "SE")
-retrain_with_ensemble(BaggingEns, "MI")
+retrain_with_ensemble(BaggingEns, "MI")'''
 
 with open('results_retrain.json') as json_file:
     data = json.load(json_file)
@@ -275,13 +278,19 @@ labels = ["random",
           "NUC"]
 
 plt.figure(figsize=(8, 5))
+fig, ax = plt.subplots()
 for method, lbl in zip(methods_to_show, labels):
     plt.plot(numbers, method, label=lbl)
 #plt.xticks([i for i in range(len(IMAGES))], IMAGES)
-plt.xlabel("images to label")
-plt.ylabel("Validation Accuracy in percent")
-if STARTDATA == 1000:
-    plt.ylim(49.5, 68.)
+plt.xlabel("Anzahl gelabelter Bilder")
+plt.ylabel("Testaccuracy in %")
+#ax.set_yscale('function', functions=(partial(np.power, 2.0), np.log2))
+#ax.set(ylim=(49, 57.1))
+#ax.set_yticks([50, 56, 56.5, 56.8, 57])
+#ax.set(ylim=(49, 67.2))
+#ax.set_yticks([50, 65, 67])
+#if STARTDATA == 1000:
+ #   plt.ylim(49.5, 68.)
 
 plt.legend(loc="lower right")
 plt.show()

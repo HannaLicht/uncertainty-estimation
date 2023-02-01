@@ -212,8 +212,8 @@ class MCDropoutEstimator(SamplingBasedEstimator):
         self.model = make_MC_dropout(model, layer_regex=".*drop.*")
 
         # check, if all dropout layers are MC dropout layers (training=True -> activated during inference)
-        #for layer in self.model.get_config().get("layers"):
-         #   print(layer)
+        # for layer in self.model.get_config().get("layers"):
+        #    print(layer)
 
         self.X, self.num_classes, self.predictions = X, num_classes, []
 
@@ -228,7 +228,10 @@ class MCDropoutEstimator(SamplingBasedEstimator):
 
         if xval is not None:
             self.xval, self.yval, self.val_predictions = xval, yval, []
-            xval = tf.split(xval, num_or_size_splits=8 if num_classes == 196 else 10)
+            if num_classes != 5:
+                xval = tf.split(xval, num_or_size_splits=8 if num_classes == 196 else 10)
+            else:
+                xval = tf.expand_dims(xval, axis=0)
             for _ in tqdm.tqdm(range(self.T)):
                 preds = self.model(xval[0])[-1]
                 for img_batch in xval[1:]:

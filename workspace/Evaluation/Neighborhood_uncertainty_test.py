@@ -1,20 +1,51 @@
 import json
 import re
 import sys
+
+from matplotlib import pyplot as plt
+
 sys.path.append("/home/urz/hlichten")
 from functions import CNN, get_train_and_test_data, split_validation_from_train, build_effnet
 import tensorflow as tf
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 
-RUNS = 4
+RUNS = 5
 SAVE_OR_USE_SAVED = False
 
 model_name = "effnetb3"
 data = "cars196"
 use_validation_data = True
+augment_data = True
 
 checkpoint_path = "../models/classification/" + model_name + "/cp.ckpt"
 xtrain, ytrain, xval, yval, xtest, ytest, cl = get_train_and_test_data(data, validation_test_split=True)
+
+
+def augment_images(x, y):
+    data_augmentation = tf.keras.Sequential([
+        tf.keras.layers.RandomFlip("horizontal"),
+        tf.keras.layers.RandomRotation(0.1),
+        tf.keras.layers.RandomTranslation([-0.1, 0.1], [-0.1, 0.1])
+    ])
+    x_new, y_new = list(x), list(y)
+    for img, lbl in zip(x, y):
+        x_new = x_new + [data_augmentation(img) for _ in range(4)]
+        y_new = y_new + [lbl for _ in range(4)]
+
+    plt.figure(figsize=(10, 10))
+    plt.subplot(3, 3, 1)
+    plt.imshow(x[0]/255.)
+    plt.axis("off")
+    for i in range(8):
+        img = data_augmentation(x[0])
+        plt.subplot(3, 3, i + 2)
+        plt.imshow(img/225.)
+        plt.axis("off")
+    plt.savefig("../plots/test_augmentation.png")
+    plt.show()
+
+    return tf.reshape(x_new, (-1, 300, 300, 3)), tf.reshape(y_new, (-1, 196))
+
 
 if use_validation_data:
     pre_path_uncertainty_model = "../models/classification/uncertainty_model/"
@@ -23,6 +54,9 @@ if use_validation_data:
         xval, yval = xval[int(4*len(xval) / 5):], yval[int(4*len(yval) / 5):]
     else:
         xtrain, ytrain, xval, yval = split_validation_from_train(xval, yval, cl, num_imgs_per_class=2)
+        if augment_data:
+            xtrain, ytrain = augment_images(xtrain, ytrain)
+            xval, yval = augment_images(xval, yval)
 else:
     pre_path_uncertainty_model = "../models/classification/uncertainty_model/trained_on_traindata/"
 
@@ -36,7 +70,7 @@ if re.match('CNN_cifar10_.*', model_name) and not use_validation_data:
     xtrain, ytrain = xtrain[:num_data], ytrain[:num_data]
 
 
-model.evaluate(xtest, ytest)
+'''model.evaluate(xtest, ytest)
 
 estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest,
                                               path_uncertainty_model=path_uncertainty_model)
@@ -55,7 +89,7 @@ print("certainties: " + str(certs[:10]) + " ... " + str(certs[-10:]))
 
 estimator.plot_diagrams(y_lbls)
 print("score = ", estimator.certainty_score(y_lbls))
-
+'''
 
 # Test: which k is best -> auroc, aupr
 incorrect = (tf.argmax(ytest, axis=-1) != tf.argmax(model.predict(xtest), axis=-1).numpy())
@@ -64,7 +98,7 @@ name_method = "nuc_val" if use_validation_data else "nuc_train"
 for _ in range(RUNS):
     auroc, aupr = [], []
 
-    for k in [5, 10, 25, 50, 100]:
+    for k in [3, 5, 10, 25, 50, 100]:
         path_uncertainty_model = None
         if SAVE_OR_USE_SAVED:
             path_uncertainty_model = pre_path_uncertainty_model + "different_k/" + str(k) + "/" + model_name +"/cp.ckpt"

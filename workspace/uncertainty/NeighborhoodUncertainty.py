@@ -30,6 +30,9 @@ class NeighborhoodUncertaintyClassifier:
         self.model_without_last_layer = tf.keras.Model(inputs=self.model.input, outputs=output)
         self.model_without_last_layer.compile()
         self.A = self.model_without_last_layer.predict(xtrain)
+        #a = [tf.reduce_sum(tf.abs(rep_vec - self.A[-1])) for rep_vec in self.A]
+        #a = tf.sort(a)
+        #print(a[:20])
         try:
             self.build_uncertainty_model()
             self.uncertainty_model.load_weights(path_uncertainty_model)
@@ -98,7 +101,7 @@ class NeighborhoodUncertaintyClassifier:
         self.uncertainty_model.fit(xtrain_uncertainty, ytrain_uncertainty,
                                    validation_data=(xval_uncertainty, yval_uncertainty),
                                    callbacks=[early_stop, rlrop],
-                                   epochs=1000)
+                                   epochs=10000)
         if path_uncertainty_model is not None:
             self.uncertainty_model.save_weights(path_uncertainty_model)
 

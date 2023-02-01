@@ -59,7 +59,13 @@ class Ensemble(SamplingBasedEstimator):
         self.init_members(model_name, num_members, optimizer, loss, metrics)
 
         rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
-        early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=20, restore_best_weights=True)
+        #early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=15, restore_best_weights=True)
+        if model_name == "effnetb3":
+            early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=15,
+                                       restore_best_weights=True)
+        else:
+            early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=15,
+                                       restore_best_weights=True)
 
         # train ensemble members
         for index, (model, imgs, lbls) in enumerate(zip(self.members, train_imgs, train_lbls)):
@@ -75,6 +81,11 @@ class Ensemble(SamplingBasedEstimator):
             self.members = [create_simple_model() for _ in range(num_members)]
         elif re.match("CNN_cifar10_.*", model_name) or model_name == "CNN_cifar10":
             self.members = [CNN(classes=10) for _ in range(num_members)]
+            for member in self.members:
+                member.load_weights("../models/classification/CNN_cifar100/cp.ckpt")
+                member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+        elif model_name == "CNN_cifar5":
+            self.members = [CNN(classes=5) for _ in range(num_members)]
             for member in self.members:
                 member.load_weights("../models/classification/CNN_cifar100/cp.ckpt")
                 member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
@@ -148,7 +159,14 @@ class DataAugmentationEns(Ensemble):
         self.init_members(model_name, num_members, optimizer, loss, metrics)
 
         rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
-        early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=20, restore_best_weights=True)
+        if model_name == "effnetb3":
+            early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=15, 
+                                       restore_best_weights=True)
+        else:
+            early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=15, 
+                                       restore_best_weights=True)
+        #early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=15,
+         #                          restore_best_weights=True)
 
         # train ensemble members
         for index, model in enumerate(self.members):

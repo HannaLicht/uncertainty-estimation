@@ -77,14 +77,13 @@ def CNN(shape=(32, 32, 3), classes=100):
     x = tf.keras.layers.Add()([x, x_skip])
     x = tf.keras.layers.Activation('relu')(x)
 
-    # begin of head: always trainable
     x = tf.keras.layers.AveragePooling2D(2, padding='same')(x)
     x = tf.keras.layers.Flatten()(x)
     x = tf.keras.layers.Dropout(0.3)(x)
     x = tf.keras.layers.Dense(256, activation='relu')(x)
     x = tf.keras.layers.Dense(100, activation='softmax' if classes == 100 else 'relu')(x)
-    if classes == 10:
-      x = tf.keras.layers.Dense(10, activation='softmax')(x)
+    if classes != 100:
+      x = tf.keras.layers.Dense(classes, activation='softmax')(x)
     model = tf.keras.Model(inputs=x_input, outputs=x)
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
@@ -234,7 +233,7 @@ def get_train_and_test_data(data, validation_test_split=False):
         # make sure the classes among valid. data are uniformly distributed (each class has 8 images -> 8*196 = 1568)
         xtrain, ytrain, xval, yval = split_validation_from_train(xtrain, ytrain, NUM_CLASSES, num_imgs_per_class=8)
 
-        xtest, ytest = tf.reshape(xtest, (-1, 300, 300, 3)), tf.reshape(ytest, (-1, 196))
+        xtest, ytest = tf.reshape(xtest, (-1, IMG_SIZE, IMG_SIZE, 3)), tf.reshape(ytest, (-1, 196))
 
         #print([list(tf.argmax(yval, axis=-1)).count(i) for i in range(196)])
 

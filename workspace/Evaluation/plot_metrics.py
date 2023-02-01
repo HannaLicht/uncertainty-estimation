@@ -1,13 +1,11 @@
 import re
 
 import matplotlib.pyplot as plt
+import numpy as np
 import tensorflow as tf
 from uncertainty.calibration_classification import get_normalized_certainties
 import sys
 sys.path.append("/home/urz/hlichten")
-sys.path.append("/home/hanna/Schreibtisch/Ingenieurinformatik VW/Igenieurinformatik/BA/uncertainty-estimation/workspace")
-print(sys.path)
-
 from functions import CNN, get_train_and_test_data, split_validation_from_train, build_effnet
 from uncertainty.MC_Dropout import MCDropoutEstimator
 from uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentationEns, RandomInitShuffleEns
@@ -16,7 +14,7 @@ import tensorflow_probability as tfp
 tfd = tfp.distributions
 
 DATA = "cifar10"
-MODEL_NAME = "CNN_cifar10_100"
+MODEL_NAME = "CNN_cifar10"
 NUM_MEMBERS = 5
 THRESHOLDS = [.5, .55, .6, .65, .7, .75, .8, .85, .9, .95, .99]
 
@@ -150,8 +148,7 @@ def plot_roc_and_pr_curves(results_metrics, labels):
 
     ax = plt.subplot(1, 2, 1)
     plt.title("ROC-Kurven")
-    for pre, spe, rec in results_metrics:
-        fpr = 1 - spe
+    for pre, fpr, rec in results_metrics:
         plt.plot(fpr, rec)
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
@@ -159,7 +156,7 @@ def plot_roc_and_pr_curves(results_metrics, labels):
 
     ax = plt.subplot(1, 2, 2)
     plt.title("PR-Kurven")
-    for (pre, spe, rec), lbl in zip(results_metrics, labels):
+    for (pre, fpr, rec), lbl in zip(results_metrics, labels):
         plt.plot(rec, pre, label=lbl)
     plt.xlabel("Recall")
     plt.ylabel("Precision")
@@ -172,8 +169,8 @@ def plot_roc_and_pr_curves(results_metrics, labels):
 
 def plot_pre_spe_rec(results_metrics, labels):
     model_name = MODEL_NAME.replace('_', ' ')
-    plt.figure(figsize=(9, 2.8))
-    plt.suptitle(model_name + " ---- " + DATA, fontsize=14)
+    plt.figure(figsize=(10, 2.8))
+    plt.suptitle(model_name, fontsize=14)
     plt.subplot(1, 3, 1)
     for i, res in enumerate(results_metrics):
         subplot_evaluation(res[0], "Uncertainty Precision", labels[i])
@@ -183,7 +180,7 @@ def plot_pre_spe_rec(results_metrics, labels):
     plt.subplot(1, 3, 3)
     for i, res in enumerate(results_metrics):
         subplot_evaluation(res[2], "Uncertainty Recall", labels[i])
-    plt.legend(loc="lower right")
+    plt.legend(loc="lower left")
     plt.savefig("../plots/pre_spe_rec.pdf")
     plt.show()
 
@@ -208,14 +205,14 @@ print("Accuracy on test dataset: ", acc)
 
 val = True
 MCEstimator = MCDropoutEstimator(model, x_test, num_classes, T=50, xval=x_val, yval=y_val)
-DAEstimator = DataAugmentationEns(x_test, num_classes, model_name=MODEL_NAME,
-                                  path_to_ensemble=path_to_dataAug_ens, num_members=NUM_MEMBERS,
-                                  X_val=x_val, y_val=y_val, val=val)
+#DAEstimator = DataAugmentationEns(x_test, num_classes, model_name=MODEL_NAME,
+ #                                 path_to_ensemble=path_to_dataAug_ens, num_members=NUM_MEMBERS,
+  #                                X_val=x_val, y_val=y_val, val=val)
 RISEstimator = RandomInitShuffleEns(x_test, num_classes, model_name=MODEL_NAME,
                                     path_to_ensemble=path_to_randInitShuffle_ens, num_members=NUM_MEMBERS,
                                     X_val=x_val, y_val=y_val, val=val)
-BaEstimator = BaggingEns(x_test, num_classes, model_name=MODEL_NAME, path_to_ensemble=path_to_bagging_ens,
-                         num_members=NUM_MEMBERS, X_val=x_val, y_val=y_val, val=val)
+#BaEstimator = BaggingEns(x_test, num_classes, model_name=MODEL_NAME, path_to_ensemble=path_to_bagging_ens,
+ #                        num_members=NUM_MEMBERS, X_val=x_val, y_val=y_val, val=val)
 
 if MODEL_NAME == "effnet":
     nuc_xtrain, nuc_ytrain, nuc_xval, nuc_yval = split_validation_from_train(x_val, y_val, num_classes,
@@ -226,40 +223,87 @@ else:
 
 NUEstimator = NeighborhoodUncertaintyClassifier(model, nuc_xtrain, nuc_ytrain, nuc_xval, nuc_yval, x_test,
                                                 path_uncertainty_model=path_uncertainty_model)
-NUEstimator_on_train = NeighborhoodUncertaintyClassifier(model, x, y, x_val, y_val, x_test,
-                                                         path_uncertainty_model=path_uncertainty_model_on_train)
+#NUEstimator_on_train = NeighborhoodUncertaintyClassifier(model, x, y, x_val, y_val, x_test,
+ #                                                        path_uncertainty_model=path_uncertainty_model_on_train)
 
 methods = ["MCdrop SE", "MCdrop MI",
-           "Bag SE", "Bag MI", "Rand SE", "Rand MI",
-           "DataAug SE", "DataAug MI",
-           "NUC_train", "NUC_valid", "Softmax"]
+           #"Bag SE", "Bag MI",
+           "Rand SE", "Rand MI",
+           #"DataAug SE", #"DataAug MI",
+           #"NUC_train",
+           "NUC_valid",
+           #"Softmax"
+           ]
 
 y_pred_drop = MCEstimator.get_ensemble_prediction()
-y_pred_bag = BaEstimator.get_ensemble_prediction()
-y_pred_aug = DAEstimator.get_ensemble_prediction()
+#y_pred_bag = BaEstimator.get_ensemble_prediction()
+#y_pred_aug = DAEstimator.get_ensemble_prediction()
 y_pred_rand = RISEstimator.get_ensemble_prediction()
-preds = [y_pred_drop, y_pred_drop, y_pred_bag, y_pred_bag, y_pred_rand, y_pred_rand,
-         y_pred_aug, y_pred_aug,
-         y_pred, y_pred, y_pred]
+preds = [y_pred_drop, y_pred_drop,# y_pred_bag, y_pred_bag,
+         y_pred_rand, y_pred_rand,
+         #y_pred_aug, y_pred_aug,
+         y_pred#, y_pred, y_pred
+         ]
 
-soft_ent_uncert_test = tfd.Categorical(probs=model.predict(x_test, verbose=0)).entropy().numpy()
-soft_ent_uncert_val = tfd.Categorical(probs=model.predict(x_val, verbose=0)).entropy().numpy()
-softmax_entropy = get_normalized_certainties(model.predict(x_val, verbose=0), y_val,
-                                             soft_ent_uncert_val, soft_ent_uncert_test)
+#soft_ent_uncert_test = tfd.Categorical(probs=model.predict(x_test, verbose=0)).entropy().numpy()
+#soft_ent_uncert_val = tfd.Categorical(probs=model.predict(x_val, verbose=0)).entropy().numpy()
+#softmax_entropy = get_normalized_certainties(model.predict(x_val, verbose=0), y_val,
+#                                             soft_ent_uncert_val, soft_ent_uncert_test)
 mcdr_se = MCEstimator.normalized_certainties_shannon_entropy()
 mcdr_mi = MCEstimator.normalized_certainties_mutual_information()
-bag_se = BaEstimator.normalized_certainties_shannon_entropy()
-bag_mi = BaEstimator.normalized_certainties_mutual_information()
+#bag_se = BaEstimator.normalized_certainties_shannon_entropy()
+#bag_mi = BaEstimator.normalized_certainties_mutual_information()
 rand_se = RISEstimator.normalized_certainties_shannon_entropy()
 rand_mi = RISEstimator.normalized_certainties_mutual_information()
-aug_se = DAEstimator.normalized_certainties_shannon_entropy()
-aug_mi = DAEstimator.normalized_certainties_mutual_information()
+#aug_se = DAEstimator.normalized_certainties_shannon_entropy()
+#aug_mi = DAEstimator.normalized_certainties_mutual_information()
 
-certainties = [mcdr_se, mcdr_mi, bag_se, bag_mi, rand_se, rand_mi, aug_se, aug_mi,
-               NUEstimator_on_train.certainties, NUEstimator.certainties,
-               softmax_entropy]
+mcdr_se_u = MCEstimator.uncertainties_shannon_entropy()
+mcdr_mi_u = MCEstimator.uncertainties_mutual_information()
+#bag_se_u = BaEstimator.uncertainties_shannon_entropy()
+#bag_mi_u = BaEstimator.uncertainties_mutual_information()
+rand_se_u = RISEstimator.uncertainties_shannon_entropy()
+rand_mi_u = RISEstimator.uncertainties_mutual_information()
+#aug_se_u = DAEstimator.uncertainties_shannon_entropy()
+#aug_mi_u = DAEstimator.uncertainties_mutual_information()
 
-results = [Evaluator(lbls, pred, certainty).results() for certainty, pred in zip(certainties, preds)]
+certainties = [mcdr_se, mcdr_mi,# bag_se, bag_mi,
+               rand_se,
+               rand_mi,
+               #aug_se,
+               #aug_mi,
+               #NUEstimator_on_train.certainties,
+               NUEstimator.certainties,
+               #softmax_entropy
+               ]
 
-plot_pre_spe_rec(results, methods)
+uncertainties = [mcdr_se_u/tf.reduce_max(mcdr_se_u), mcdr_mi_u/tf.reduce_max(mcdr_mi_u),
+               # bag_se_u//tf.reduce_max(bag_se_u), bag_mi_u//tf.reduce_max(bag_mi_u),
+               rand_se_u/tf.reduce_max(rand_se_u), rand_mi_u//tf.reduce_max(rand_mi_u),
+               #aug_se_u//tf.reduce_max(aug_se_u), aug_mi_u//tf.reduce_max(aug_mi_u),
+               #1-NUEstimator_on_train.certainties,
+               1-NUEstimator.certainties,
+               #soft_ent_uncert_test/tf.reduce_max(soft_ent_uncert_test)
+               ]
+
+#results = [Evaluator(lbls, pred, certainty).results() for certainty, pred in zip(certainties, preds)]
+#plot_pre_spe_rec(results, methods)
+
+results = []
+
+for pred, uncert in zip(preds, uncertainties):
+    pr = tf.metrics.Precision(thresholds=list(np.linspace(0, 1, 200)))
+    rec = tf.metrics.Recall(thresholds=list(np.linspace(0, 1, 200)))
+    fp = tf.metrics.FalsePositives(thresholds=list(np.linspace(0, 1, 200)))
+    tn = tf.metrics.TrueNegatives(thresholds=list(np.linspace(0, 1, 200)))
+
+    incorrect = (lbls != pred)
+    pr.update_state(incorrect, uncert)
+    rec.update_state(incorrect, uncert)
+    fp.update_state(incorrect, uncert)
+    tn.update_state(incorrect, uncert)
+
+    fpr = (fp.result() / (fp.result() + tn.result())).numpy()
+    results.append([pr.result().numpy(), fpr, rec.result().numpy()])
+
 plot_roc_and_pr_curves(results, methods)
