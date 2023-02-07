@@ -10,15 +10,15 @@ from uncertainty.calibration_classification import reliability_diagram, uncertai
     plot_regression
 from functions import get_train_and_test_data, CNN
 
-method = "rand_initialization_shuffle"
+method = "mc_drop"
 metric = "MI"
-isontonic_reg = True
+isontonic_reg = False
 
 
 fig = plt.figure(figsize=(9, 2.8))
 
 for count, (model_name, title) in enumerate(zip(["CNN_cifar10_100", "CNN_cifar10", "CNN_cifar100"],
-                                                ["100 Trainingsdaten Cifar10", "Cifar10 gesamt", "Cifar100 gesamt"])):
+                                                ["CNN Cifar10 (100 Bilder)", "CNN Cifar10 (gesamt)", "CNN Cifar100 (gesamt)"])):
 
     xtrain, ytrain, xval, yval, xtest, ytest, cl = get_train_and_test_data("cifar10" if count != 2 else "cifar100",
                                                                            validation_test_split=True)
@@ -48,11 +48,11 @@ for count, (model_name, title) in enumerate(zip(["CNN_cifar10_100", "CNN_cifar10
                                 estimator.uncertainties_shannon_entropy(), title=title,
                                 label="Testdaten" if model_name == "CNN_cifar100" else None)
             plt.xlabel("Shannon Entropie")
-            if title == "100 Trainingsdaten Cifar10":
+            if model_name == "CNN_cifar10_100":
                 start = 1.25
                 stop = 2.35
                 step = 0.25
-            elif title == "Cifar10 gesamt":
+            elif model_name == "CNN_cifar10":
                 start = 0
                 stop = 2.2
                 step = 0.5
@@ -75,11 +75,11 @@ for count, (model_name, title) in enumerate(zip(["CNN_cifar10_100", "CNN_cifar10
                                 label="Testdaten" if model_name == "CNN_cifar100" else None, color="green")
             plt.xlabel("Mutual Information")
 
-            if title == "100 Trainingsdaten Cifar10":
+            if model_name == "CNN_cifar10_100":
                 start = 0
                 stop = 0.7
                 step = 0.2
-            elif title == "Cifar10 gesamt":
+            elif model_name == "CNN_cifar10":
                 start = 0
                 stop = 0.65
                 step = 0.2
@@ -95,24 +95,26 @@ for count, (model_name, title) in enumerate(zip(["CNN_cifar10_100", "CNN_cifar10
         reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=estimator.p_ens,
                             certainties=estimator.normalized_certainties_shannon_entropy(),
                             label_perfectly_calibrated=False, num_bins=10,
-                            method="Shannon Entropie" if model_name == "CNN_cifar100" else None)
+                            method="SE" if model_name == "CNN_cifar100" else None)
         reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=estimator.p_ens, num_bins=10,
                             certainties=estimator.normalized_certainties_mutual_information(),
-                            label_perfectly_calibrated=model_name == "CNN_cifar100", color="green",
-                            method="Mutual Information" if model_name == "CNN_cifar100" else None)
+                            label_perfectly_calibrated=False, color="green",
+                            method="MI" if model_name == "CNN_cifar100" else None)
 
-        ece_se = expected_calibration_error(tf.argmax(ytest, axis=-1), estimator.p_ens,
+        ece_se = expected_calibration_error(tf.argmax(ytest, axis=-1), estimator.get_ensemble_prediction(),
                                             estimator.normalized_certainties_shannon_entropy()).numpy()
-        ece_mi = expected_calibration_error(tf.argmax(ytest, axis=-1), estimator.p_ens,
+        ece_mi = expected_calibration_error(tf.argmax(ytest, axis=-1), estimator.get_ensemble_prediction(),
                                             estimator.normalized_certainties_mutual_information()).numpy()
         plt.text(0.02, 0.95, "ECE SE: {:.3f}".format(ece_se), color="brown", weight="bold")
         plt.text(0.02, 0.87, "ECE MI: {:.3f}".format(ece_mi), color="brown", weight="bold")
+        if model_name == "CNN_cifar100":
+            plt.legend(loc="lower right")
 
 if isontonic_reg:
     plot_name = '../plots/calibration_' + method + "_" + metric + "_isotonic_regression.png"
     plt.subplots_adjust(left=0.06, right=0.88, bottom=0.16, top=0.9, wspace=0.3, hspace=0.35)
 else:
-    plt.subplots_adjust(left=0.06, right=0.9, bottom=0.16, top=0.9, wspace=0.3, hspace=0.35)
+    plt.subplots_adjust(left=0.06, right=0.96, bottom=0.16, top=0.9, wspace=0.3, hspace=0.35)
     plot_name = '../plots/calibration_' + method + ".png"
 
 plt.savefig(plot_name, dpi=300)

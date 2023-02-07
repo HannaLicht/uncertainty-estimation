@@ -1,14 +1,19 @@
+import json
 import sys
 import re
+import time
+
 sys.path.append("/home/urz/hlichten")
 from uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentationEns, RandomInitShuffleEns
 from functions import get_train_and_test_data
 import tensorflow as tf
 
 NUM_MEMBERS = 5
-MODEL = "effnetb3"
-METHOD = "rand_initialization_shuffle"
-DATA = "cars196"
+MODEL = "CNN_cifar10_100"
+METHOD = "bagging"
+DATA = "cifar10"
+GET_TIMES = False
+RUNS = 1
 
 path_to_ensemble = ENSEMBLE_LOCATION + "/" + METHOD + "/" + MODEL
 
@@ -17,21 +22,49 @@ X_train, y_train, X_val, y_val, X_test, y_test, classes = get_train_and_test_dat
 num_data = None
 if re.match('CNN_cifar10_.*', MODEL):
     num_data = int(MODEL.replace('CNN_cifar10_', ""))
-    MODEL = "CNN_cifar10"
     X_train = X_train[:num_data]
     y_train = y_train[:num_data]
 
 if METHOD == "bagging":
-    estimator = BaggingEns(X_test, classes, X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val,
-                           model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=True)
+    ens = BaggingEns
+    key = "Bagging"
 elif METHOD == "data_augmentation":
-    estimator = DataAugmentationEns(X_test, classes, X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val,
-                           model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=True)
+    ens = DataAugmentationEns
+    key = "Data Augmentation"
 elif METHOD == "rand_initialization_shuffle":
-    estimator = RandomInitShuffleEns(X_test, classes, X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val,
-                           model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=True)
+    ens = RandomInitShuffleEns
+    key = "ZIS"
 else:
     raise NotImplementedError
+
+for _ in range(RUNS):
+    st = time.time()
+    estimator = ens(X_test, classes, X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val,
+                    model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=True)
+    end = time.time()
+
+    if GET_TIMES:
+        with open('../Results/times.json') as json_file:
+            t = json.load(json_file)
+
+        t[MODEL][key]["with calibration"] = t[MODEL][key]["with calibration"] + [round(end - st, 5)]
+
+        st = time.time()
+        ens(X_test, classes, X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val,
+            model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=False)
+        end = time.time()
+
+        t[MODEL][key]["uncertainty"] = t[MODEL][key]["uncertainty"] + [round(end - st, 5)]
+
+        if MODEL != "effnetb3":
+            st = time.time()
+            ens(X_test, classes, X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val,
+                model_name=MODEL, num_members=NUM_MEMBERS, val=False)
+            end = time.time()
+            t[MODEL][key]["preparation & uncertainty"] = t[MODEL][key]["preparation & uncertainty"] + [round(end - st, 5)]
+
+        with open('../Results/times.json', 'w') as json_file:
+            json.dump(t, json_file, indent=4)
 
 pred = estimator.get_ensemble_prediction()
 

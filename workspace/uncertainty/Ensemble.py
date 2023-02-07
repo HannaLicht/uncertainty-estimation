@@ -91,6 +91,10 @@ class Ensemble(SamplingBasedEstimator):
                 member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
         elif model_name == "CNN_cifar100":
             self.members = [CNN(classes=100) for _ in range(num_members)]
+        elif model_name == "CNN_cifar50":
+            self.members = [CNN(classes=50) for _ in range(num_members)]
+        elif model_name == "CNN_mnist5":
+            self.members = [CNN(shape=(28, 28, 1), classes=5) for _ in range(num_members)]
         elif model_name == "effnetb3":
             self.members = [build_effnet(self.num_classes) for _ in range(num_members)]
         elif model_name == "modified_UNet":

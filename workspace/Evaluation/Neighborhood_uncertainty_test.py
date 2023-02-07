@@ -1,6 +1,7 @@
 import json
 import re
 import sys
+import time
 
 from matplotlib import pyplot as plt
 
@@ -11,10 +12,11 @@ from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifie
 
 RUNS = 5
 SAVE_OR_USE_SAVED = False
+GET_TIMES = True
 
 model_name = "effnetb3"
 data = "cars196"
-use_validation_data = True
+use_validation_data = False
 augment_data = True
 
 checkpoint_path = "../models/classification/" + model_name + "/cp.ckpt"
@@ -48,6 +50,7 @@ def augment_images(x, y):
 
 
 if use_validation_data:
+    method = "NUC Validation"
     pre_path_uncertainty_model = "../models/classification/uncertainty_model/"
     if model_name != "effnetb3":
         xtrain, ytrain = xval[:int(4*len(xval) / 5)], yval[:int(4*len(yval) / 5)]
@@ -58,6 +61,7 @@ if use_validation_data:
             xtrain, ytrain = augment_images(xtrain, ytrain)
             xval, yval = augment_images(xval, yval)
 else:
+    method = "NUC Training"
     pre_path_uncertainty_model = "../models/classification/uncertainty_model/trained_on_traindata/"
 
 path_uncertainty_model = pre_path_uncertainty_model + model_name + "/cp.ckpt"
@@ -70,10 +74,30 @@ if re.match('CNN_cifar10_.*', model_name) and not use_validation_data:
     xtrain, ytrain = xtrain[:num_data], ytrain[:num_data]
 
 
-'''model.evaluate(xtest, ytest)
+model.evaluate(xtest, ytest)
 
+st = time.time()
 estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest,
                                               path_uncertainty_model=path_uncertainty_model)
+end = time.time()
+
+if GET_TIMES:
+    with open('../Results/times.json') as json_file:
+        t = json.load(json_file)
+
+    t[model_name][method]["uncertainty"] = t[model_name][method]["uncertainty"] + [round(end - st, 5)]
+
+    st = time.time()
+    NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest)
+    end = time.time()
+
+    t[model_name][method]["preparation & uncertainty"] = t[model_name][method]["preparation & uncertainty"] + [round(end - st, 5)]
+
+    with open('../Results/times.json', 'w') as json_file:
+        json.dump(t, json_file, indent=4)
+
+    quit()
+
 certainties = estimator.certainties
 y_lbls = tf.argmax(ytest, axis=-1)
 index = sorted(range(len(certainties)), key=certainties.__getitem__, reverse=False)
@@ -89,7 +113,7 @@ print("certainties: " + str(certs[:10]) + " ... " + str(certs[-10:]))
 
 estimator.plot_diagrams(y_lbls)
 print("score = ", estimator.certainty_score(y_lbls))
-'''
+
 
 # Test: which k is best -> auroc, aupr
 incorrect = (tf.argmax(ytest, axis=-1) != tf.argmax(model.predict(xtest), axis=-1).numpy())
@@ -119,11 +143,11 @@ for _ in range(RUNS):
     print("AUPRs: ", aupr)
 
     for i, (roc, pr) in enumerate(zip(auroc, aupr)):
-        with open('results_auroc_aupr.json') as json_file:
+        with open('../Results/auroc_aupr.json') as json_file:
             data = json.load(json_file)
             data[name_method][model_name]["auroc"][i] = data[name_method][model_name]["auroc"][i] + [roc.item()]
             data[name_method][model_name]["aupr"][i] = data[name_method][model_name]["aupr"][i] + [pr.item()]
-        with open('results_auroc_aupr.json', 'w') as json_file:
+        with open('../Results/auroc_aupr.json', 'w') as json_file:
             json.dump(data, json_file, indent=4)
 
 

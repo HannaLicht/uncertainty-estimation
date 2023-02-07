@@ -10,16 +10,16 @@ from functools import partial
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from functions import get_train_and_test_data, CNN
+from functions import get_train_and_test_data, CNN, adjust_lightness
 from uncertainty.MC_Dropout import MCDropoutEstimator
 from uncertainty.Ensemble import BaggingEns, DataAugmentationEns, RandomInitShuffleEns
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
-STARTDATA = 10000
-NUM_IMAGES = 1000
-RUNS = 3
+STARTDATA = 100
+NUM_IMAGES = 10
+RUNS = 6
 PATH_TO_PRETRAINED_CNN_10 = "../models/classification/retrain/CNN_cifar10_" + str(STARTDATA) + "/cp.ckpt"
 PATH_TO_PRETRAINED_CNN_100 = "../models/classification/retrain/CNN_cifar100/cp.ckpt"
 
@@ -104,7 +104,7 @@ def retrain_with_ensemble(ensemble, metric):
         model = prepare_model()
         retrainer = RetrainingEvaluator()
 
-        with open('results_retrain.json') as json_file:
+        with open('../Results/retrain.json') as json_file:
             data = json.load(json_file)
 
         for i in range(times_images_added):
@@ -124,7 +124,7 @@ def retrain_with_ensemble(ensemble, metric):
                 data[str(STARTDATA)][str(STARTDATA + (i+1) * NUM_IMAGES)]["Ensembles"][ensemble.__name__]["MI"] = \
                     data[str(STARTDATA)][str(STARTDATA+(i+1)*NUM_IMAGES)]["Ensembles"][ensemble.__name__]["MI"] + [acc]
 
-        with open('results_retrain.json', 'w') as json_file:
+        with open('../Results/retrain.json', 'w') as json_file:
             json.dump(data, json_file, indent=4)
 
 
@@ -132,7 +132,7 @@ def retrain_with_MCdrop(metric):
     for _ in range(RUNS):
         model = prepare_model()
         retrainer = RetrainingEvaluator()
-        with open('results_retrain.json') as json_file:
+        with open('../Results/retrain.json') as json_file:
             data = json.load(json_file)
 
         for i in range(times_images_added):
@@ -152,7 +152,7 @@ def retrain_with_MCdrop(metric):
                 data[str(STARTDATA)][str(STARTDATA + (i + 1) * NUM_IMAGES)]["MC_drop"]["MI"] = \
                     data[str(STARTDATA)][str(STARTDATA + (i + 1) * NUM_IMAGES)]["MC_drop"]["MI"] + [acc]
 
-        with open('results_retrain.json', 'w') as json_file:
+        with open('../Results/retrain.json', 'w') as json_file:
             json.dump(data, json_file, indent=4)
 
 
@@ -171,11 +171,11 @@ def retrain_with_nuc():
                                                                       retrainer.X_left)
             acc, model = retrainer.retrain(model, NUM_IMAGES, uncertainty_estimator.certainties)
 
-            with open('results_retrain.json') as json_file:
+            with open('../Results/retrain.json') as json_file:
                 data = json.load(json_file)
                 data[str(STARTDATA)][str(STARTDATA + (i+1)*NUM_IMAGES)]["NUC"] = \
                     data[str(STARTDATA)][str(STARTDATA + (i+1)*NUM_IMAGES)]["NUC"] + [acc]
-            with open('results_retrain.json', 'w') as json_file:
+            with open('../Results/retrain.json', 'w') as json_file:
                 json.dump(data, json_file, indent=4)
 
 
@@ -190,11 +190,11 @@ def retrain_with_softmax_entropy():
             certainties = 1 - shannon_entropy
             acc, model = retrainer.retrain(model, NUM_IMAGES, certainties)
 
-            with open('results_retrain.json') as json_file:
+            with open('../Results/retrain.json') as json_file:
                 data = json.load(json_file)
                 data[str(STARTDATA)][str(STARTDATA + (i+1)*NUM_IMAGES)]["softmax_entropy"] = \
                     data[str(STARTDATA)][str(STARTDATA + (i+1)*NUM_IMAGES)]["softmax_entropy"] + [acc]
-            with open('results_retrain.json', 'w') as json_file:
+            with open('../Results/retrain.json', 'w') as json_file:
                 json.dump(data, json_file, indent=4)
 
 
@@ -207,11 +207,11 @@ def retrain_with_random_data():
             certainties = [random.random() for _ in retrainer.y_left]
             acc, model = retrainer.retrain(model, NUM_IMAGES, certainties)
 
-            with open('results_retrain.json') as json_file:
+            with open('../Results/retrain.json') as json_file:
                 data = json.load(json_file)
                 data[str(STARTDATA)][str(STARTDATA + (i + 1) * NUM_IMAGES)]["random"] = \
                     data[str(STARTDATA)][str(STARTDATA + (i + 1) * NUM_IMAGES)]["random"] + [acc]
-            with open('results_retrain.json', 'w') as json_file:
+            with open('../Results/retrain.json', 'w') as json_file:
                 json.dump(data, json_file, indent=4)
 
 
@@ -224,7 +224,7 @@ prepare_model().evaluate(xtest, tf.keras.utils.to_categorical(ytest.reshape((-1)
 # check whether the classes are balanced in train dataset
 print([list(ytrain).count(i) for i in range(10)])
 
-'''retrain_with_nuc()
+retrain_with_nuc()
 retrain_with_ensemble(DataAugmentationEns, "SE")
 retrain_with_ensemble(DataAugmentationEns, "MI")
 retrain_with_ensemble(RandomInitShuffleEns, "SE")
@@ -234,9 +234,9 @@ retrain_with_MCdrop("MI")
 retrain_with_softmax_entropy()
 retrain_with_random_data()
 retrain_with_ensemble(BaggingEns, "SE")
-retrain_with_ensemble(BaggingEns, "MI")'''
+retrain_with_ensemble(BaggingEns, "MI")
 
-with open('results_retrain.json') as json_file:
+with open('../Results/retrain.json') as json_file:
     data = json.load(json_file)
     data = data[str(STARTDATA)]
 
@@ -254,43 +254,58 @@ ris_mi = [mean(data[str(imgs)]["Ensembles"]["RandomInitShuffleEns"]["MI"])*100 f
 nuc = [mean(data[str(imgs)]["NUC"])*100 for imgs in numbers]
 
 
-methods_to_show = [rand,
-                   softmax,
-                   mc_se,
-                   mc_mi,
-                   bag_se,
-                   bag_mi,
-                   aug_se,
-                   aug_mi,
-                   ris_se,
-                   ris_mi,
-                   nuc]
-labels = ["random",
-          "softmax entropy",
-          "MCdr SE",
-          "MCdr MI",
-          "bag SE",
-          "bag MI",
-          "aug SE",
-          "aug MI",
-          "ris SE",
-          "ris MI",
-          "NUC"]
+plt.figure(figsize=(8, 4.5))
 
-plt.figure(figsize=(8, 5))
-fig, ax = plt.subplots()
-for method, lbl in zip(methods_to_show, labels):
-    plt.plot(numbers, method, label=lbl)
-#plt.xticks([i for i in range(len(IMAGES))], IMAGES)
+if STARTDATA == 100:
+    methods_to_show = [rand, nuc, mc_mi, aug_mi, mc_se, bag_mi, softmax, ris_mi, bag_se, ris_se, aug_se]
+    labels = ["Zufall", "NUC",  "MC Dropout MI", "Data Aug. MI", "MC Dropout SE", "Bagging MI", "Softmax SE", "ZIS MI",
+              "Bagging SE", "ZIS SE", "Data Aug. SE"]
+    colors = ["black", adjust_lightness("green", 1.3), adjust_lightness("green", 1.6), "yellowgreen",
+              adjust_lightness("olive", 1.5), adjust_lightness("yellow", 0.9), "gold",  "orange",
+              adjust_lightness("coral", 0.9), adjust_lightness("red", 1.1), adjust_lightness("red", 0.8)
+              ]
+    plt.ylim(33.6, 51.8)
+    #plt.xticks([100, 200, 300, 400, 500, 600, 700, 800, 900, 1000])
+
+elif STARTDATA == 1000 and NUM_IMAGES == 1000:
+    methods_to_show = [rand, nuc, mc_mi, ris_mi, softmax, bag_mi, aug_mi, mc_se, bag_se, ris_se, aug_se]
+    labels = ["Zufall", "NUC", "MC Dropout MI", "ZIS MI", "Softmax SE", "Bagging MI", "Data Aug. MI", "MC Dropout SE",
+              "Bagging SE", "ZIS SE", "Data Aug. SE"]
+    colors = ["black", adjust_lightness("green", 1.3), adjust_lightness("green", 1.6), "yellowgreen",
+              adjust_lightness("olive", 1.5), adjust_lightness("yellow", 0.9), "gold", "orange",
+              adjust_lightness("coral", 0.9), adjust_lightness("red", 1.1), adjust_lightness("red", 0.8)
+              ]
+    plt.ylim(54.5, 67.8)
+
+elif STARTDATA == 1000 and NUM_IMAGES == 100:
+    methods_to_show = [rand, nuc, softmax, mc_mi, ris_mi, bag_mi, aug_mi, mc_se, ris_se, aug_se, bag_se]
+    labels = ["Zufall", "NUC", "Softmax SE", "MC Dropout MI", "ZIS MI", "Bagging MI", "Data Aug. MI", "MC Dropout SE",
+              "ZIS SE", "Data Aug. SE", "Bagging SE"]
+    colors = ["black", adjust_lightness("green", 1.3), adjust_lightness("green", 1.6), "yellowgreen",
+              adjust_lightness("olive", 1.5), adjust_lightness("yellow", 0.9), "gold", "orange",
+              adjust_lightness("coral", 0.9), adjust_lightness("red", 1.1), adjust_lightness("red", 0.8)
+              ]
+    plt.ylim(51.5, 57.2)
+
+else:
+    methods_to_show = [rand, mc_mi, nuc, softmax, mc_se, bag_mi, aug_mi, ris_mi, bag_se, ris_se, aug_se]
+    labels = ["Zufall", "MC Dropout MI", "NUC", "Softmax SE", "MC Dropout SE", "Bagging MI", "Data Aug. MI", "ZIS MI",
+              "Bagging SE", "ZIS SE", "Data Aug. SE"]
+    colors = ["black", adjust_lightness("green", 1.3), adjust_lightness("green", 1.6), "yellowgreen",
+              adjust_lightness("olive", 1.5), adjust_lightness("yellow", 0.9), "gold", "orange",
+              adjust_lightness("coral", 0.9), adjust_lightness("red", 1.1), adjust_lightness("red", 0.8)
+              ]
+    plt.ylim(67.6, 71.6)
+
+for i, (method, l, c) in enumerate(zip(methods_to_show, labels, colors)):
+    plt.plot(numbers, method, "--" if l == "Zufall" else "-", label=l, color=c, zorder=20 if l == "Zufall" else 15-i)
+    if l == "Zufall":
+        plt.plot(numbers, method, label=" ", color="white", zorder=0)
 plt.xlabel("Anzahl gelabelter Bilder")
 plt.ylabel("Testaccuracy in %")
-#ax.set_yscale('function', functions=(partial(np.power, 2.0), np.log2))
-#ax.set(ylim=(49, 57.1))
-#ax.set_yticks([50, 56, 56.5, 56.8, 57])
-#ax.set(ylim=(49, 67.2))
-#ax.set_yticks([50, 65, 67])
-#if STARTDATA == 1000:
- #   plt.ylim(49.5, 68.)
 
-plt.legend(loc="lower right")
+plt.legend(bbox_to_anchor=(1, 1))
+plt.subplots_adjust(left=0.1, right=0.75, bottom=0.12, top=0.95, wspace=0.3, hspace=0.35)
+plt.savefig("../plots/active_learning_" + str(STARTDATA) + "_" + str(NUM_IMAGES) + ".pdf")
+
 plt.show()

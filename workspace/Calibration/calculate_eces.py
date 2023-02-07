@@ -16,12 +16,12 @@ for model_name in ["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_cifar10_10000", "
 
     model = CNN(classes=cl)
     model.load_weights("../models/classification/" + model_name + "/cp.ckpt")
-    ypred = model.predict(xtest)
+    ypred = tf.argmax(model.predict(xtest), axis=-1)
 
     path = "../models/classification/ensembles/" + method + "/" + model_name
     if method == "mc_drop":
         estimator = MCDropoutEstimator(model, xtest, cl, xval=xval, yval=yval)
-        ypred = estimator.p_ens
+        ypred = estimator.get_ensemble_prediction()
     elif method == "softmax":
         soft_ent_uncert_val = tfd.Categorical(probs=model.predict(xval, verbose=0)).entropy().numpy()
         soft_ent_uncert_test = tfd.Categorical(probs=model.predict(xtest, verbose=0)).entropy().numpy()
@@ -32,19 +32,18 @@ for model_name in ["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_cifar10_10000", "
         continue
     elif method == "bagging":
         estimator = BaggingEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
-        ypred = estimator.p_ens
+        ypred = estimator.get_ensemble_prediction()
     elif method == "data_augmentation":
         estimator = DataAugmentationEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
-        ypred = estimator.p_ens
+        ypred = estimator.get_ensemble_prediction()
     elif method == "rand_initialization_shuffle":
         estimator = RandomInitShuffleEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
-        ypred = estimator.p_ens
+        ypred = estimator.get_ensemble_prediction()
     elif method == "nuc":
-        path = "../models/classification/uncertainty_model/"
+        path = "../models/classification/uncertainty_model/" + model_name + "/cp.ckpt"
         xtrain, ytrain = xval[:int(4*len(xval) / 5)], yval[:int(4*len(yval) / 5)]
         xval, yval = xval[int(4*len(xval) / 5):], yval[int(4*len(yval) / 5):]
-        estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest,
-                                                  path + model_name.replace('CNN_', "") + "/cp.ckpt")
+        estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest, path)
         ece = expected_calibration_error(tf.argmax(ytest, axis=-1), ypred, estimator.certainties).numpy()
 
         correct = (tf.argmax(ypred, axis=-1) == tf.argmax(ytest, axis=-1))

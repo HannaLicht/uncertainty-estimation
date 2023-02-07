@@ -1,5 +1,6 @@
+import json
 import re
-import keras.applications.efficientnet as efn
+import time
 import sys
 sys.path.append("/home/urz/hlichten")
 from functions import CNN, get_train_and_test_data, build_effnet
@@ -7,26 +8,42 @@ from uncertainty.MC_Dropout import MCDropoutEstimator
 import tensorflow as tf
 
 T = 50
-MODEL = "effnetb3"
+MODEL = "CNN_cifar100"
 CHECKPOINT_PATH = "../models/classification/" + MODEL + "/cp.ckpt"
+GET_TIMES = True
 
-if MODEL == "CNN_cifar100":
-    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("CNN_cifar100", validation_test_split=True)
-    model = CNN(classes=100)
+if re.match("CNN_cifar10.*", MODEL):
+    data = "cifar100" if MODEL == "CNN_cifar100" else "cifar10"
+    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data(data, validation_test_split=True)
+    model = CNN(classes=num_classes)
     model.load_weights(CHECKPOINT_PATH)
-    estimator = MCDropoutEstimator(model, x_test, num_classes, T, xval=x_val, yval=y_val)
-elif re.match("CNN_cifar10.*", MODEL):
-    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("CNN_cifar10", validation_test_split=True)
-    model = CNN(classes=10)
-    model.load_weights(CHECKPOINT_PATH)
-    estimator = MCDropoutEstimator(model, x_test, num_classes, T, xval=x_val, yval=y_val)
 elif MODEL == "effnetb3":
     _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("cars196", validation_test_split=True)
-    eff = build_effnet(num_classes)
-    eff.load_weights(CHECKPOINT_PATH)
-    estimator = MCDropoutEstimator(eff, x_test, num_classes, T, xval=x_val, yval=y_val)
+    model = build_effnet(num_classes)
+    model.load_weights(CHECKPOINT_PATH)
 else:
     raise NotImplementedError
+
+st = time.time()
+estimator = MCDropoutEstimator(model, x_test, num_classes, T, xval=x_val, yval=y_val)
+end = time.time()
+
+if GET_TIMES:
+    with open('../Results/times.json') as json_file:
+        t = json.load(json_file)
+
+    t[MODEL]["MC Dropout"]["with calibration"] = t[MODEL]["MC Dropout"]["with calibration"] + [round(end - st, 5)]
+
+    model = build_effnet(num_classes) if MODEL == "effnetb3" else CNN(classes=num_classes)
+    model.load_weights(CHECKPOINT_PATH)
+    st = time.time()
+    MCDropoutEstimator(model, x_test, num_classes, T)
+    end = time.time()
+
+    t[MODEL]["MC Dropout"]["uncertainty"] = t[MODEL]["MC Dropout"]["uncertainty"] + [round(end - st, 5)]
+
+    with open('../Results/times.json', 'w') as json_file:
+        json.dump(t, json_file, indent=4)
 
 pred = estimator.get_ensemble_prediction()
 

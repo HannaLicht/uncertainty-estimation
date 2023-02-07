@@ -5,11 +5,13 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import tensorflow_probability as tfp
 
+from functions import adjust_lightness
+
 tfd = tfp.distributions
 x = [3, 5, 10, 25, 50, 100]
 valid = True
 
-with open('results_auroc_aupr.json') as json_file:
+with open('../Results/auroc_aupr.json') as json_file:
     data = json.load(json_file)
 
 # AUROCs for nuc trained on validation data
@@ -43,17 +45,6 @@ c10_10000_tra_pr = data["nuc_train"]["CNN_cifar10_10000"]["aupr"]
 c10_tra_pr = data["nuc_train"]["CNN_cifar10"]["aupr"]
 c100_tra_pr = data["nuc_train"]["CNN_cifar100"]["aupr"]
 effnet_tra_pr = data["nuc_train"]["effnetb3"]["aupr"]
-
-
-def adjust_lightness(color, amount=0.5):
-    import matplotlib.colors as mc
-    import colorsys
-    try:
-        c = mc.cnames[color]
-    except:
-        c = color
-    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
-    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
 
 
 def plot_curves(auroc, valid):

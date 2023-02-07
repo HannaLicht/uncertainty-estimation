@@ -8,7 +8,7 @@ from functions import get_train_and_test_data, CNN
 
 validation = True
 
-fig = plt.figure(figsize=(9, 2.8))
+fig = plt.figure(figsize=(9.5, 2.8))
 
 for count, model_name in enumerate(["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_cifar10"]):
     xtrain, ytrain, xval, yval, xtest, ytest, classes = get_train_and_test_data("cifar10", validation_test_split=True)
@@ -31,16 +31,24 @@ for count, model_name in enumerate(["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_
 
     estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest,
                                                   path + model_name + "/cp.ckpt")
-    plt.title("Gesamter Trainingsdatensatz" if model_name == "CNN_cifar10" else
-                            model_name.replace('CNN_cifar10_', "") + " Trainingsdaten")
+
     reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=ypred, certainties=estimator.certainties,
                         label_perfectly_calibrated=model_name == "CNN_cifar10", num_bins=15,
                         method="Prädiktionen Testdaten" if model_name == "CNN_cifar10" else None)
-    ece = expected_calibration_error(tf.argmax(ytest, axis=-1), ypred, estimator.certainties).numpy()
+    ece = expected_calibration_error(tf.argmax(ytest, axis=-1), tf.argmax(ypred, axis=-1), estimator.certainties).numpy()
     plt.text(0.02, 0.95, "ECE: {:.3f}".format(ece), color="brown", weight="bold")
 
+    if model_name == "CNN_cifar10":
+        plt.legend(bbox_to_anchor=(0.5, 0.3))
+        plt.title("CNN Cifar10 (gesamt)")
+    elif model_name == "CNN_cifar10_100":
+        plt.title("CNN Cifar10 (100 Bilder)")
+    else:
+        plt.title("CNN Cifar10 (1000 Bilder)")
+
+
 plt.subplots_adjust(left=0.06, right=0.88, bottom=0.16, top=0.9, wspace=0.3, hspace=0.35)
-plot_name = '../plots/calibration_nuc_on_validation_cifar10.png' if validation else 'plots/calibration_nuc_cifar10.png'
+plot_name = '../plots/calibration_nuc_on_validation_cifar10.png' if validation else '../plots/calibration_nuc_cifar10.png'
 
 plt.savefig(plot_name, dpi=300)
 plt.show()

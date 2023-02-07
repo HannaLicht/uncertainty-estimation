@@ -18,8 +18,7 @@ def expected_calibration_error(y_true, y_pred, certainties, num_bins=15, two_ret
     :param two_returns:
     :return:
     """
-    pred_y = tf.argmax(y_pred, axis=-1)
-    correct = tf.cast((pred_y == y_true), dtype=tf.float32)
+    correct = tf.cast((y_pred == y_true), dtype=tf.float32)
     b = np.linspace(start=0, stop=1.0, num=num_bins)
     bins = np.digitize(certainties, bins=b, right=True)
 
@@ -38,7 +37,8 @@ def expected_calibration_error(y_true, y_pred, certainties, num_bins=15, two_ret
             mask = bins == b
             if np.any(mask):
                 o += tf.abs(tf.reduce_sum(correct[mask]) - tf.reduce_sum(certainties[mask]))
-        return o / pred_y.shape[0]
+
+        return o / len(y_true)
 
 
 def static_calibration_error(y_true, y_pred, num_bins=15):
@@ -72,10 +72,11 @@ def get_normalized_certainties(pred_val, y_val, uncertainties_val, uncertainties
 
 def reliability_diagram(y_true, output, certainties=None, num_bins=15, method=None, label_perfectly_calibrated=True,
                         color=None):
-    x, y = expected_calibration_error(y_true, output, certainties=certainties, num_bins=num_bins, two_returns=True)
+    x, y = expected_calibration_error(y_true, tf.argmax(output, axis=-1), certainties=certainties, num_bins=num_bins,
+                                      two_returns=True)
     plt.plot(x, y, "s-", label=method, color=color)
     plt.plot([0, 1], [0, 1], "k:", label="Perfekt kalibriert" if label_perfectly_calibrated else None)
-    plt.xlabel("Konfidenz")
+    plt.xlabel("Certainty")
     plt.ylabel("Accuracy")
     if method is not None or label_perfectly_calibrated:
         plt.legend(bbox_to_anchor=(0.5, 0.4))

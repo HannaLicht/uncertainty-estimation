@@ -12,8 +12,10 @@ plt.fill_between(np.linspace(start=0, stop=0.5, num=50), np.linspace(start=0, st
                  tf.sigmoid(np.linspace(start=-6, stop=0, num=50)), color='red', alpha=0.15)
 plt.fill_between(np.linspace(start=0.5, stop=1, num=50), np.linspace(start=0.5, stop=1, num=50),
                  tf.sigmoid(np.linspace(start=0, stop=6, num=50)), color='brown', alpha=0.15)
-plt.xlabel('Konfidenz')
-plt.ylabel('tatsächliche Accuracy')
+plt.xlabel('Certainty')
+plt.ylabel('Accuracy')
 plt.legend(loc="upper left")
-plt.savefig("Evaluation/plots/calibration_plot.png", dpi=300)
+plt.subplots_adjust(left=0.15, right=0.95, bottom=0.15, top=0.95, wspace=0.3, hspace=0.35)
+
+plt.savefig("../plots/calibration_plot.png", dpi=300)
 plt.show()

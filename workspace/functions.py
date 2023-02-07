@@ -81,9 +81,12 @@ def CNN(shape=(32, 32, 3), classes=100):
     x = tf.keras.layers.Flatten()(x)
     x = tf.keras.layers.Dropout(0.3)(x)
     x = tf.keras.layers.Dense(256, activation='relu')(x)
-    x = tf.keras.layers.Dense(100, activation='softmax' if classes == 100 else 'relu')(x)
-    if classes != 100:
-      x = tf.keras.layers.Dense(classes, activation='softmax')(x)
+    if classes > 10:
+        x = tf.keras.layers.Dense(classes, activation='softmax')(x)
+    else:
+        if shape == (32, 32, 3):
+            x = tf.keras.layers.Dense(100, activation='relu')(x)
+        x = tf.keras.layers.Dense(classes, activation='softmax')(x)
     model = tf.keras.Model(inputs=x_input, outputs=x)
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
@@ -115,6 +118,17 @@ def build_effnet(num_classes, img_size=300):
     return model
 
 
+def adjust_lightness(color, amount=0.5):
+    import matplotlib.colors as mc
+    import colorsys
+    try:
+        c = mc.cnames[color]
+    except:
+        c = color
+    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
+    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+
+
 def get_dropout_rate(model):
     layers = model.get_config().get('layers')
     dropout = []
@@ -141,8 +155,8 @@ def split_validation_from_train(xtrain, ytrain, num_classes, num_imgs_per_class)
             x_train.append(img)
             y_train.append(y)
 
-    xval, yval = tf.reshape(xval, (-1, 300, 300, 3)), tf.reshape(yval, (-1, 196))
-    x_train, y_train = tf.reshape(x_train, (-1, 300, 300, 3)), tf.reshape(y_train, (-1, 196))
+    xval, yval = tf.reshape(xval, (-1, 300, 300, 3)), tf.reshape(yval, (-1, num_classes))
+    x_train, y_train = tf.reshape(x_train, (-1, 300, 300, 3)), tf.reshape(y_train, (-1, num_classes))
 
     return x_train, y_train, xval, yval
 
@@ -161,12 +175,16 @@ def get_train_and_test_data(data, validation_test_split=False):
         (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
         X_train = X_train.reshape(-1, 28, 28, 1) / 255.0
         X_test = X_test.reshape(-1, 28, 28, 1) / 255.0
+        y_train = tf.keras.utils.to_categorical(y_train.reshape((-1)), 10)
+        y_test = tf.keras.utils.to_categorical(y_test.reshape((-1)), 10)
         classes = 10
 
     elif data == "fashion_mnist":
         (X_train, y_train), (X_test, y_test) = tf.keras.datasets.fashion_mnist.load_data()
         X_train = X_train.reshape(-1, 28, 28, 1) / 255.0
         X_test = X_test.reshape(-1, 28, 28, 1) / 255.0
+        y_train = tf.keras.utils.to_categorical(y_train.reshape((-1)), 10)
+        y_test = tf.keras.utils.to_categorical(y_test.reshape((-1)), 10)
         classes = 10
 
     elif data == "cifar100":

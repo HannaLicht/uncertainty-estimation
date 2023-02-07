@@ -1,0 +1,26 @@
+{
+  "CNN_cifar10_100":{
+    "train": 0.8000,
+    "test": 0.3276
+  },
+  "CNN_cifar10_1000":{
+    "train": 0.8470,
+    "test": 0.5159
+  },
+  "CNN_cifar10_10000":{
+    "train": 0.833,
+    "test": 0.6443
+  },
+  "CNN_cifar10":{
+    "train": 0.8737,
+    "test": 0.7295
+  },
+  "CNN_cifar100":{
+    "train": 0.6116,
+    "test": 0.4036
+  },
+  "effnetb3":{
+    "train": 0.9988,
+    "test": 0.6202
+  }
+}

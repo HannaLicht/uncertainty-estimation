@@ -217,27 +217,35 @@ class MCDropoutEstimator(SamplingBasedEstimator):
 
         self.X, self.num_classes, self.predictions = X, num_classes, []
 
-        # batch X to reduce RAM usage
-        X = tf.split(X, num_or_size_splits=43 if num_classes == 196 else 10)
+        try:
+            # batch X to reduce RAM usage
+            num_splits = len(self.X)/40 if num_classes > 50 else 10
+            X = tf.split(X, num_or_size_splits=43 if num_classes == 196 else int(num_splits))
+        except:
+            X = tf.expand_dims(X, axis=0)
+
         for _ in tqdm.tqdm(range(self.T)):
             preds = self.model(X[0])[-1]
             for img_batch in X[1:]:
                 preds = tf.concat([preds, self.model(img_batch)[-1]], axis=0)
             self.predictions.append(preds)
+
         self.p_ens = tf.math.reduce_mean(self.predictions, axis=0)
 
         if xval is not None:
             self.xval, self.yval, self.val_predictions = xval, yval, []
-            if num_classes != 5:
+
+            try:
                 xval = tf.split(xval, num_or_size_splits=8 if num_classes == 196 else 10)
-            else:
+            except:
                 xval = tf.expand_dims(xval, axis=0)
+
             for _ in tqdm.tqdm(range(self.T)):
                 preds = self.model(xval[0])[-1]
                 for img_batch in xval[1:]:
                     preds = tf.concat([preds, self.model(img_batch)[-1]], axis=0)
                 self.val_predictions.append(preds)
-            #self.val_predictions = [self.model(xval)[-1] for _ in tqdm.tqdm(range(self.T))]
+
             self.val_p_ens = tf.math.reduce_mean(self.val_predictions, axis=0)
 
 
