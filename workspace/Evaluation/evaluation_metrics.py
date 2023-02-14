@@ -7,7 +7,7 @@ import sys
 sys.path.append("/home/urz/hlichten")
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 from uncertainty.calibration_classification import get_normalized_certainties, expected_calibration_error
-from functions import CNN, get_train_and_test_data, build_effnet, split_validation_from_train
+from functions import CNN, get_data, build_effnet, split_validation_from_train
 from uncertainty.MC_Dropout import MCDropoutEstimator
 from uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentationEns, RandomInitShuffleEns
 import tensorflow_probability as tfp
@@ -20,9 +20,9 @@ See Neighborhood_uncertainty_test.py for AUROCs and AUPRs of the NUC method
 
 
 SAVE_OR_USE_SAVED_MODELS = False
-DATA = "cars196"
-MODEL_NAME = "effnetb3"
-RUNS = 1
+DATA = "cifar10"
+MODEL_NAME = "CNN_cifar10_10000"
+RUNS = 9
 
 path_to_bagging_ens = ENSEMBLE_LOCATION + "/bagging/" + MODEL_NAME if SAVE_OR_USE_SAVED_MODELS else ""
 path_to_dataAug_ens = ENSEMBLE_LOCATION + "/data_augmentation/" + MODEL_NAME if SAVE_OR_USE_SAVED_MODELS else ""
@@ -30,16 +30,19 @@ path_to_randInitShuffle_ens = ENSEMBLE_LOCATION + "/rand_initialization_shuffle/
     SAVE_OR_USE_SAVED_MODELS else ""
 model_path = "../models/classification/" + MODEL_NAME + "/cp.ckpt"
 
-path_uncertainty_model = "../models/classification/uncertainty_model/" + MODEL_NAME + "/cp.ckpt" \
-    if SAVE_OR_USE_SAVED_MODELS else None
-path_uncertainty_model_on_train = "../models/classification/uncertainty_model/trained_on_traindata/" + MODEL_NAME + \
-                                  "/cp.ckpt" if SAVE_OR_USE_SAVED_MODELS else None
-k = 10
+k_val, k_tr = 3, 3
 
-if MODEL_NAME == "effnetb3":
-    k = 3
-    path_uncertainty_model = "../models/classification/uncertainty_model/different_k/3/effnetb3/cp.ckpt" \
-        if SAVE_OR_USE_SAVED_MODELS else None
+if MODEL_NAME == "CNN_cifar10_100":
+    k_tr = 50
+if MODEL_NAME == "CNN_cifar10_1000":
+    k_tr = 25
+    k_val = 5
+
+pre_path_uncertainty_model = "../models/classification/uncertainty_model/"
+path_uncertainty_model = pre_path_uncertainty_model + "val/" + str(k_val) + "/" + MODEL_NAME + "/cp.ckpt" \
+    if SAVE_OR_USE_SAVED_MODELS else None
+path_uncertainty_model_on_train = pre_path_uncertainty_model + "train/" + MODEL_NAME + "/cp.ckpt" \
+    if SAVE_OR_USE_SAVED_MODELS else None
 
 
 class Evaluator:
@@ -116,7 +119,6 @@ class Evaluator:
 
 def auroc(lbls_test, preds_test, uncerts):
     m = tf.keras.metrics.AUC(curve='ROC')
-    print((lbls_test != preds_test))
     m.update_state((lbls_test != preds_test), uncerts)      # incorrect: label 1 -> uncertain = positive class
     return m.result().numpy()
 
@@ -149,23 +151,21 @@ def calculate_metrics(test_lbls, pred, uncert):
     return pre, spe, rec
 
 
-x, y, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data(DATA, validation_test_split=True)
+num_data = None
+if re.match('CNN_cifar10_.*', MODEL_NAME):
+    num_data = int(MODEL_NAME.replace('CNN_cifar10_', ""))
+x, y, x_val, y_val, x_test, y_test, num_classes, _, _ = get_data(DATA, num_data=num_data)
 
 model = build_effnet(num_classes) if MODEL_NAME == "effnetb3" else CNN(classes=num_classes)
 model.load_weights(model_path)
 
-num_data = None
-if re.match('CNN_cifar10_.*', MODEL_NAME):
-    num_data = int(MODEL_NAME.replace('CNN_cifar10_', ""))
-    x, y = x[:num_data], y[:num_data]
-
 lbls = tf.math.argmax(y_test, axis=-1).numpy()
 y_pred = tf.math.argmax(model.predict(x_test), axis=-1).numpy()
 
-#_, acc = model.evaluate(x, y)
-#print("Accuracy on train dataset: ", acc)
-#_, acc = model.evaluate(x_test, y_test)
-#print("Accuracy on test dataset: ", acc)
+_, acc = model.evaluate(x, y)
+print("Accuracy on train dataset: ", acc)
+_, acc = model.evaluate(x_test, y_test)
+print("Accuracy on test dataset: ", acc)
 
 for _ in range(RUNS):
 
@@ -209,7 +209,7 @@ for _ in range(RUNS):
     t_bag = round(end - st, 5)
 
     st = time.time()
-    NUEstimator_on_train = NeighborhoodUncertaintyClassifier(model, x, y, x_val, y_val, x_test,
+    NUEstimator_on_train = NeighborhoodUncertaintyClassifier(model, x, y, x_val, y_val, x_test, k=k_tr,
                                                              path_uncertainty_model=path_uncertainty_model_on_train)
     end = time.time()
     t_nuc_tr = round(end - st, 5)
@@ -221,11 +221,12 @@ for _ in range(RUNS):
         nuc_xtrain, nuc_ytrain = x_val[:int(4 * len(x_val) / 5)], y_val[:int(4 * len(y_val) / 5)]
         nuc_xval, nuc_yval = x_val[int(4 * len(x_val) / 5):], y_val[int(4 * len(y_val) / 5):]
 
-    st = time.time()
-    NUEstimator = NeighborhoodUncertaintyClassifier(model, nuc_xtrain, nuc_ytrain, nuc_xval, nuc_yval, x_test,
-                                                    path_uncertainty_model=path_uncertainty_model, k=k)
-    end = time.time()
-    t_nuc_val = round(end - st, 5)
+    if MODEL_NAME != "CNN_cifar10_100":
+        st = time.time()
+        NUEstimator = NeighborhoodUncertaintyClassifier(model, nuc_xtrain, nuc_ytrain, nuc_xval, nuc_yval, x_test,
+                                                        path_uncertainty_model=path_uncertainty_model, k=k_val)
+        end = time.time()
+        t_nuc_val = round(end - st, 5)
 
     with open('../Results/times.json') as json_file:
         t = json.load(json_file)
@@ -243,8 +244,9 @@ for _ in range(RUNS):
             t[MODEL_NAME]["Bagging"]["preparation & calibration"] + [t_bag]
         t[MODEL_NAME]["NUC Training"]["preparation & uncertainty"] = \
             t[MODEL_NAME]["NUC Training"]["preparation & uncertainty"] + [t_nuc_tr]
-        t[MODEL_NAME]["NUC Validation"]["preparation & uncertainty"] = \
-            t[MODEL_NAME]["NUC Validation"]["preparation & uncertainty"] + [t_nuc_val]
+        if MODEL_NAME != "CNN_cifar10_100":
+            t[MODEL_NAME]["NUC Validation"]["preparation & uncertainty"] = \
+                t[MODEL_NAME]["NUC Validation"]["preparation & uncertainty"] + [t_nuc_val]
 
     else:
         t[MODEL_NAME]["Data Augmentation"]["with calibration"] = \
@@ -252,7 +254,8 @@ for _ in range(RUNS):
         t[MODEL_NAME]["ZIS"]["with calibration"] = t[MODEL_NAME]["ZIS"]["with calibration"] + [t_ris]
         t[MODEL_NAME]["Bagging"]["with calibration"] = t[MODEL_NAME]["Bagging"]["with calibration"] + [t_bag]
         t[MODEL_NAME]["NUC Training"]["uncertainty"] = t[MODEL_NAME]["NUC Training"]["uncertainty"] + [t_nuc_tr]
-        t[MODEL_NAME]["NUC Validation"]["uncertainty"] = t[MODEL_NAME]["NUC Validation"]["uncertainty"] + [t_nuc_val]
+        if MODEL_NAME != "CNN_cifar10_100":
+            t[MODEL_NAME]["NUC Validation"]["uncertainty"] = t[MODEL_NAME]["NUC Validation"]["uncertainty"] + [t_nuc_val]
 
     with open('../Results/times.json', 'w') as json_file:
         json.dump(t, json_file, indent=4)
@@ -280,13 +283,19 @@ for _ in range(RUNS):
     cert_aug_se = DAEstimator.normalized_certainties_shannon_entropy()
     cert_aug_mi = DAEstimator.normalized_certainties_mutual_information()
 
-    methods_auroc_aupr = ["MCdrop SE", "MCdrop MI", "Bag SE", "Bag MI", "Rand SE", "Rand MI", "DataAug SE", "DataAug MI"]
-    methods_pre_spe_rec = ["MCD SE", "MCD MI", "Bag SE", "Bag MI", "ZIS SE", "ZIS MI", "DA SE", "DA MI", "NUC Tr",
-                           "NUC Va", "Soft SE"]
+    methods_auroc_aupr = ["MCdrop SE", "MCdrop MI", "Bag SE", "Bag MI", "Rand SE", "Rand MI", "DataAug SE",
+                          "DataAug MI", "Softmax"]
+    methods_pre_spe_rec = ["MCD SE", "MCD MI", "Bag SE", "Bag MI", "ZIS SE", "ZIS MI", "DA SE", "DA MI", "Soft SE",
+                           "NUC Tr", "NUC Va"]
 
     preds_auroc_aupr = [y_pred_drop, y_pred_drop, y_pred_bag, y_pred_bag, y_pred_rand, y_pred_rand, y_pred_aug,
-                        y_pred_aug]
-    preds_pre_spe_rec = preds_auroc_aupr + [y_pred, y_pred, y_pred]
+                        y_pred_aug, y_pred]
+    preds_pre_spe_rec = preds_auroc_aupr + [y_pred, y_pred]
+
+    if MODEL_NAME == "CNN_cifar10_100":
+        methods_pre_spe_rec.pop(-1)
+        preds_pre_spe_rec.pop(-1)
+        print(methods_pre_spe_rec)
 
     # normalize uncertainties between 0 and 1 to make the metrics' calculation more precise
     uncert_mcdr_se -= tf.reduce_min(uncert_mcdr_se)
@@ -300,29 +309,36 @@ for _ in range(RUNS):
     uncerts_auroc_aupr = [uncert_mcdr_se/tf.reduce_max(uncert_mcdr_se), uncert_mcdr_mi/tf.reduce_max(uncert_mcdr_mi),
                           uncert_bag_se/tf.reduce_max(uncert_bag_se), uncert_bag_mi/tf.reduce_max(uncert_bag_mi),
                           uncert_rand_se/tf.reduce_max(uncert_rand_se), uncert_rand_mi/tf.reduce_max(uncert_rand_mi),
-                          uncert_aug_se/tf.reduce_max(uncert_aug_se), uncert_aug_mi/tf.reduce_max(uncert_aug_mi)]
+                          uncert_aug_se/tf.reduce_max(uncert_aug_se), uncert_aug_mi/tf.reduce_max(uncert_aug_mi),
+                          soft_ent_uncert_test/tf.reduce_max(soft_ent_uncert_test)]
     uncerts_auroc_aupr = [tf.clip_by_value(uncerts, 0, 1) for uncerts in uncerts_auroc_aupr]
 
-    uncerts_pre_spe_rec = uncerts_auroc_aupr + [1-NUEstimator_on_train.certainties, 1-NUEstimator.certainties,
-                                                soft_ent_uncert_test/tf.reduce_max(soft_ent_uncert_test)]
+    if MODEL_NAME != "CNN_cifar10_100":
+        uncerts_pre_spe_rec = uncerts_auroc_aupr + [1-NUEstimator_on_train.certainties, 1-NUEstimator.certainties]
+        certs_pre_spe_rec = [cert_mcdr_se, cert_mcdr_mi, cert_bag_se, cert_bag_mi, cert_rand_se, cert_rand_mi,
+                             cert_aug_se, cert_aug_mi, softmax_entropy, NUEstimator_on_train.certainties,
+                             NUEstimator.certainties]
+    else:
+        uncerts_pre_spe_rec = uncerts_auroc_aupr + [1 - NUEstimator_on_train.certainties]
+        certs_pre_spe_rec = [cert_mcdr_se, cert_mcdr_mi, cert_bag_se, cert_bag_mi, cert_rand_se, cert_rand_mi,
+                             cert_aug_se, cert_aug_mi, softmax_entropy, NUEstimator_on_train.certainties]
+
     uncerts_pre_spe_rec = [tf.clip_by_value(uncerts, 0, 1) for uncerts in uncerts_pre_spe_rec]
 
-    certs_pre_spe_rec = [cert_mcdr_se, cert_mcdr_mi, cert_bag_se, cert_bag_mi, cert_rand_se, cert_rand_mi, cert_aug_se,
-                         cert_aug_mi, NUEstimator_on_train.certainties, NUEstimator.certainties, softmax_entropy]
 
     # calculate AUROC and AUPR
     with open('../Results/auroc_aupr.json') as json_file:
         data = json.load(json_file)
 
-    for i, (uncert, pred) in enumerate(zip(uncerts_auroc_aupr, preds_auroc_aupr)):
+    for m, uncert, pred in zip(methods_auroc_aupr, uncerts_auroc_aupr, preds_auroc_aupr):
         roc = auroc(lbls, pred, uncert)
         pr = aupr(lbls, pred, uncert)
-        print(methods_auroc_aupr[i])
+        print(m)
         print("AUROC: ", roc)
         print("AUPR: ", pr, "\n")
 
-        data[methods_auroc_aupr[i]][MODEL_NAME]["auroc"] = data[methods_auroc_aupr[i]][MODEL_NAME]["auroc"] + [roc.item()]
-        data[methods_auroc_aupr[i]][MODEL_NAME]["aupr"] = data[methods_auroc_aupr[i]][MODEL_NAME]["aupr"] + [pr.item()]
+        data[m][MODEL_NAME]["auroc"] = data[m][MODEL_NAME]["auroc"] + [roc.item()]
+        data[m][MODEL_NAME]["aupr"] = data[m][MODEL_NAME]["aupr"] + [pr.item()]
 
     with open('../Results/auroc_aupr.json', 'w') as json_file:
         json.dump(data, json_file, indent=4)

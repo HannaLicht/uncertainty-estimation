@@ -6,24 +6,30 @@ import time
 from matplotlib import pyplot as plt
 
 sys.path.append("/home/urz/hlichten")
-from functions import CNN, get_train_and_test_data, split_validation_from_train, build_effnet
+from functions import CNN, get_data, split_validation_from_train, build_effnet
 import tensorflow as tf
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 
-RUNS = 5
+RUNS = 9
 SAVE_OR_USE_SAVED = False
-GET_TIMES = True
+GET_TIMES = False
 
-model_name = "effnetb3"
-data = "cars196"
+model_name = "CNN_cifar10_10000"
+data = "cifar10"
 use_validation_data = False
-augment_data = True
+
+assert (use_validation_data and model_name != "CNN_cifar10_100")\
+       or not use_validation_data
+
+num_data = None
+if re.match('CNN_cifar10_.*', model_name):
+    num_data = int(model_name.replace('CNN_cifar10_', ""))
 
 checkpoint_path = "../models/classification/" + model_name + "/cp.ckpt"
-xtrain, ytrain, xval, yval, xtest, ytest, cl = get_train_and_test_data(data, validation_test_split=True)
+xtrain, ytrain, xval, yval, xtest, ytest, cl, _, _ = get_data(data, num_data)
 
 
-def augment_images(x, y):
+'''def augment_images(x, y):
     data_augmentation = tf.keras.Sequential([
         tf.keras.layers.RandomFlip("horizontal"),
         tf.keras.layers.RandomRotation(0.1),
@@ -46,32 +52,27 @@ def augment_images(x, y):
     plt.savefig("../plots/test_augmentation.png")
     plt.show()
 
-    return tf.reshape(x_new, (-1, 300, 300, 3)), tf.reshape(y_new, (-1, 196))
+    return tf.reshape(x_new, (-1, 300, 300, 3)), tf.reshape(y_new, (-1, 196))'''
 
 
 if use_validation_data:
     method = "NUC Validation"
-    pre_path_uncertainty_model = "../models/classification/uncertainty_model/"
+    pre_path_uncertainty_model = "../models/classification/uncertainty_model/val/3/"
     if model_name != "effnetb3":
         xtrain, ytrain = xval[:int(4*len(xval) / 5)], yval[:int(4*len(yval) / 5)]
         xval, yval = xval[int(4*len(xval) / 5):], yval[int(4*len(yval) / 5):]
     else:
         xtrain, ytrain, xval, yval = split_validation_from_train(xval, yval, cl, num_imgs_per_class=2)
-        if augment_data:
+        '''if augment_data:
             xtrain, ytrain = augment_images(xtrain, ytrain)
-            xval, yval = augment_images(xval, yval)
+            xval, yval = augment_images(xval, yval)'''
 else:
     method = "NUC Training"
-    pre_path_uncertainty_model = "../models/classification/uncertainty_model/trained_on_traindata/"
+    pre_path_uncertainty_model = "../models/classification/uncertainty_model/train/3/"
 
 path_uncertainty_model = pre_path_uncertainty_model + model_name + "/cp.ckpt"
 model = CNN(classes=100 if model_name == "CNN_cifar100" else 10) if model_name != "effnetb3" else build_effnet(cl)
 model.load_weights(checkpoint_path)
-
-num_data = None
-if re.match('CNN_cifar10_.*', model_name) and not use_validation_data:
-    num_data = int(model_name.replace('CNN_cifar10_', ""))
-    xtrain, ytrain = xtrain[:num_data], ytrain[:num_data]
 
 
 model.evaluate(xtest, ytest)
@@ -118,16 +119,15 @@ print("score = ", estimator.certainty_score(y_lbls))
 # Test: which k is best -> auroc, aupr
 incorrect = (tf.argmax(ytest, axis=-1) != tf.argmax(model.predict(xtest), axis=-1).numpy())
 name_method = "nuc_val" if use_validation_data else "nuc_train"
+last_k = 99 if model_name == "CNN_cifar10_100" else 100
 
 for _ in range(RUNS):
     auroc, aupr = [], []
 
-    for k in [3, 5, 10, 25, 50, 100]:
+    for k in [3, 5, 10, 25, 50, last_k]:
         path_uncertainty_model = None
         if SAVE_OR_USE_SAVED:
-            path_uncertainty_model = pre_path_uncertainty_model + "different_k/" + str(k) + "/" + model_name +"/cp.ckpt"
-            if k == 10:
-                path_uncertainty_model = pre_path_uncertainty_model + model_name + "/cp.ckpt"
+            path_uncertainty_model = pre_path_uncertainty_model + str(k) + "/" + model_name +"/cp.ckpt"
 
         estimator = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest,
                                                       path_uncertainty_model=path_uncertainty_model, k=k)

@@ -50,17 +50,20 @@ print("----------------------------------------AUPR-----------------------------
 make_latex_table("aupr", MEANS)
 print("\n\n\n")
 
+keys = ["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_cifar10_10000", "CNN_cifar10", "CNN_cifar100", "effnetb3"]
+
 
 def nuc_runtimes(nuc):
     output = "Tr."
-    for key in t:
+    for key in keys:
         output += " & "
         output += str(round(
-            tf.reduce_mean(t[key][nuc]["preparation & uncertainty"] - t[key][nuc]["uncertainty"]).numpy(), 1))
+            tf.reduce_mean(t[key][nuc]["preparation & uncertainty"]).numpy() -
+            tf.reduce_mean(t[key][nuc]["uncertainty"]).numpy(), 1))
     output += " //"
     print(output)
     output = "CEs"
-    for key in t:
+    for key in keys:
         output += " & "
         output += str(round(tf.reduce_mean(t[key][nuc]["uncertainty"]).numpy(), 1))
     output += " //"
@@ -69,21 +72,21 @@ def nuc_runtimes(nuc):
 
 def ensemble_runtimes(ens):
     output = "Tr."
-    for key in t:
+    for key in keys:
         output += " & "
-        times = [t[key][ens]["preparation & uncertainty"] - t[key][ens]["uncertainty"]] + \
-                [t[key][ens]["preparation & calibration"] - t[key][ens]["with calibration"]]
-        output += str(round(tf.reduce_mean(times).numpy(), 1))
+        times = tf.reduce_mean(t[key][ens]["preparation & uncertainty"]) - tf.reduce_mean(t[key][ens]["uncertainty"]) +\
+                tf.reduce_mean(t[key][ens]["preparation & calibration"]) - tf.reduce_mean(t[key][ens]["with calibration"])
+        output += str(round(times.numpy()*0.5, 1))
     output += " //"
     print(output)
     output = "CEs"
-    for key in t:
+    for key in keys:
         output += " & "
         output += str(round(tf.reduce_mean(t[key][ens]["uncertainty"]).numpy(), 1))
     output += " //"
     print(output)
     output = "kal."
-    for key in t:
+    for key in keys:
         output += " & "
         output += str(round(tf.reduce_mean(t[key][ens]["with calibration"]).numpy(), 1))
     output += " //"
@@ -93,35 +96,32 @@ def ensemble_runtimes(ens):
 with open('../Results/times.json') as json_file:
     t = json.load(json_file)
 
-
 print("--------------------------------------TIMES--------------------------------------\n")
 print("& \multicolumn{6}{c}{SOFTMAX SE} \\ \midrule")
 output = "unk."
-for key in t:
+for key in keys:
     output += " & "
-    output += str(round(tf.reduce_mean(t[key]["Softmax SE"]["uncertainty"]), 3))
+    output += str(round(tf.reduce_mean(t[key]["Softmax SE"]["uncertainty"]).numpy(), 3))
 output += " //"
 print(output)
 output = "kal."
-for key in t:
+for key in keys:
     output += " & "
-    output += str(round(tf.reduce_mean(t[key]["Softmax SE"]["calibration"]), 3))
+    output += str(round(tf.reduce_mean(t[key]["Softmax SE"]["calibration"]).numpy(), 3))
 output += " //"
 print(output)
 
 print("\midrule & \multicolumn{6}{c}{MONTE CARLO DROPOUT} \\ \midrule")
 output = "unk."
-for key in t:
+for key in keys:
     output += " & "
-    output += str(round(tf.reduce_mean(t[key]["MC Dropout"]["uncertainty"]), 1))
-    if key == "effnetb3":
-        output += " min"
+    output += str(round(tf.reduce_mean(t[key]["MC Dropout"]["uncertainty"]).numpy(), 1))
 output += " //"
 print(output)
 output = "kal."
-for key in t:
+for key in keys:
     output += " & "
-    output += str(round(tf.reduce_mean(t[key]["MC Dropout"]["with calibration"]), 1))
+    output += str(round(tf.reduce_mean(t[key]["MC Dropout"]["with calibration"]).numpy(), 1))
 output += " //"
 print(output)
 
@@ -153,7 +153,7 @@ def ece_row(title):
     text = title
     for key in ["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_cifar10_10000", "CNN_cifar10", "CNN_cifar100", "effnetb3"]:
         text += " & "
-        text += round(tf.reduce_mean(ece[key][title]).numpy(), 3)
+        text += str(round(tf.reduce_mean(ece[key][title]).numpy(), 3))
     text += " \\"
     print(text)
 

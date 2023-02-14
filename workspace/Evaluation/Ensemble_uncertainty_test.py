@@ -9,11 +9,11 @@ from functions import get_train_and_test_data
 import tensorflow as tf
 
 NUM_MEMBERS = 5
-MODEL = "CNN_cifar10_100"
-METHOD = "bagging"
-DATA = "cifar10"
-GET_TIMES = False
-RUNS = 1
+MODEL = "effnetb3"
+METHOD = "data_augmentation"
+DATA = "cars196"
+GET_TIMES = True
+RUNS = 5
 
 path_to_ensemble = ENSEMBLE_LOCATION + "/" + METHOD + "/" + MODEL
 

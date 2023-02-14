@@ -87,16 +87,16 @@ def uncertainty_diagram(y_true, y_pred, uncertainties, title="", label=None, col
     y_pred = np.argmax(y_pred, axis=-1).astype(np.float32)
     correct = (y_pred == y_true)
 
-    b = np.linspace(start=tf.reduce_min(uncertainties), stop=tf.reduce_max(uncertainties), num=10)
+    b = np.linspace(start=tf.reduce_min(uncertainties), stop=tf.reduce_max(uncertainties), num=8)
     bins = np.digitize(uncertainties, bins=b, right=True)
 
     x, y = [], []
-    for b in range(10):
+    for b in range(8):
         mask = bins == b
         if np.any(mask):
             x.append(np.sum(uncertainties[mask]) / len(uncertainties[mask]))
             y.append(np.sum(correct[mask]) / len(correct[mask]))
-    plt.plot(x, y, "s-", color=color, label=label, zorder=1)
+    plt.plot(x, y, "s-", color=color, label=label, zorder=1, linewidth=1.)
     plt.title(title)
     plt.xlabel("Uncertainty Estimates")
     plt.ylim((-0.05, 1.05))
@@ -106,7 +106,7 @@ def uncertainty_diagram(y_true, y_pred, uncertainties, title="", label=None, col
         plt.legend(bbox_to_anchor=(0.5, 1))
 
 
-def plot_regression(y_true, y_pred, uncertainties, title="", label=False):
+def plot_regression(y_true, y_pred, uncertainties, title="", label=False, text="", style="-"):
     y_pred = np.argmax(y_pred, axis=-1).astype(np.float32)
     correct = (y_pred == y_true)
 
@@ -118,7 +118,8 @@ def plot_regression(y_true, y_pred, uncertainties, title="", label=False):
     y = [1. if c else 0. for c in correct]
     x = np.linspace(start=tf.reduce_min(uncertainties), stop=tf.reduce_max(uncertainties), num=100)
     regressor, normalized_certainties = isotonic_regression(uncertainties, y, x)
-    plt.plot(x, normalized_certainties, color="black", label="Regressionsfunktion" if label else None, zorder=0)
+    plt.plot(x, normalized_certainties, color="black", label="G " + text if label else None, zorder=0, linewidth=1.,
+             linestyle=style)
 
     if label:
         plt.legend(bbox_to_anchor=(0.5, 1))

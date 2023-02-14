@@ -2,20 +2,17 @@
 
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from functions import CNN, get_train_and_test_data
+from functions import CNN, get_data
 
 CONTINUE = False
 DATASET = "cifar10"
-NUM_DATA = None
+NUM_DATA = 10000
 shape = (32, 32, 3)
 
-train_images, train_labels, val_images, val_labels, test_images, test_labels, classes = \
-    get_train_and_test_data(DATASET, validation_test_split=True)
-
-if NUM_DATA is not None:
-    assert NUM_DATA <= len(train_images)
-    train_images = train_images[:NUM_DATA]
-    train_labels = train_labels[:NUM_DATA]
+train_images, train_labels, val_images, val_labels, test_images, test_labels, classes, _, _ = \
+    get_data(DATASET, num_data=NUM_DATA)
+print(len(train_images))
+print(len(val_images))
 
 # Create a basic model instance
 model = CNN(shape, classes)
@@ -29,7 +26,7 @@ checkpoint_path = "CNN_" + DATASET + ("" if NUM_DATA is None else "_" + str(NUM_
 # early stopping to monitor the validation loss and avoid overfitting
 early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=15, restore_best_weights=True)
 # reducing learning rate on plateau
-rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr= 1e-6, verbose=1)
+rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
 # Create a callback that saves the model's weights
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_weights_only=True,

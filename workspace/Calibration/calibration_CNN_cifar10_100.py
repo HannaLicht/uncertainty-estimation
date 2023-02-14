@@ -7,11 +7,11 @@ sys.path.append("/home/urz/hlichten")
 from uncertainty.MC_Dropout import MCDropoutEstimator
 from uncertainty.Ensemble import DataAugmentationEns, RandomInitShuffleEns, ENSEMBLE_LOCATION
 from uncertainty.calibration_classification import  plot_regression, uncertainty_diagram
-from functions import get_train_and_test_data, CNN
+from functions import get_data, CNN
 
 
 fig = plt.figure(figsize=(9, 2.8))
-xtrain, ytrain, xval, yval, xtest, ytest, cl = get_train_and_test_data("cifar10", validation_test_split=True)
+xtrain, ytrain, xval, yval, xtest, ytest, cl, _, _ = get_data("cifar10", num_data=100)
 model = CNN(classes=cl)
 model.load_weights("../models/classification/CNN_cifar10_100/cp.ckpt")
 

@@ -1,15 +1,15 @@
 {
   "CNN_cifar10_100":{
-    "train": 0.8000,
-    "test": 0.3276
+    "train": 0.5200,
+    "test": 0.2739
   },
   "CNN_cifar10_1000":{
-    "train": 0.8470,
-    "test": 0.5159
+    "train": 0.0798,
+    "test": 0.5120
   },
   "CNN_cifar10_10000":{
-    "train": 0.833,
-    "test": 0.6443
+    "train": 0.8289,
+    "test": 0.6411
   },
   "CNN_cifar10":{
     "train": 0.8737,

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 import sys
 sys.path.append("/home/urz/hlichten")
-from functions import get_train_and_test_data, split_validation_from_train, build_effnet, CNN, adjust_lightness
+from functions import get_data, split_validation_from_train, build_effnet, CNN, adjust_lightness
 from uncertainty.Ensemble import DataAugmentationEns, RandomInitShuffleEns, BaggingEns
 from uncertainty.MC_Dropout import MCDropoutEstimator
 from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
@@ -13,8 +13,8 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
-RUNS = 1
-DATA = "cifar100"
+RUNS = 2
+DATA = "cars196"
 
 
 if DATA == "cifar10" or DATA == "mnist":
@@ -50,8 +50,8 @@ colors = [
     adjust_lightness('b', 0.8), adjust_lightness('tomato', 0.6),
     adjust_lightness('b', 1.4), adjust_lightness('tomato', 1.0),
     adjust_lightness('b', 1.6), adjust_lightness('tomato', 1.3),
-    adjust_lightness('yellowgreen', 1.4), adjust_lightness('yellowgreen', 0.7),
-    adjust_lightness('blueviolet', 1.3), "black"
+    adjust_lightness('yellowgreen', 1.3), adjust_lightness('yellowgreen', 0.8),
+    "mediumturquoise", "black"
 ]
 thresholds = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99]
 
@@ -91,10 +91,10 @@ def split_up_some_classes(x, y):
     y_new = tf.reshape(y_new, (-1, num_used_classes))
 
     return x_new, y_new, unknown_classes
-
 '''
+
 # get train, val and test datasets without frogs
-xtrain, ytrain, xval, yval, xtest, ytest, _ = get_train_and_test_data(DATA, validation_test_split=True)
+xtrain, ytrain, xval, yval, xtest, ytest, _, _, _ = get_data(DATA)
 train_images, train_labels, unknown_train = split_up_some_classes(xtrain, ytrain)
 val_images, val_labels, unknown_val = split_up_some_classes(xval, yval)
 test_images, test_labels, unknown_test = split_up_some_classes(xtest, ytest)
@@ -194,46 +194,70 @@ for _ in range(RUNS):
             for i in range(len(thresholds)):
                 data[DATA][method][i] = data[DATA][method][i] + [recall[i].item()]
         with open('../Results/recalls_ood.json', 'w') as json_file:
-            json.dump(data, json_file, indent=4)
-'''
+            json.dump(data, json_file, indent=4)'''
+
 
 with open('../Results/recalls_ood.json') as json_file:
     data = json.load(json_file)
 
-plt.figure(figsize=(10, 2.8))
+plt.figure(figsize=(10, 4))
 for i, d in enumerate(data):
     if i == 0:
         continue
-    i -= 1
-    plt.subplot(1, 3, i+1)
-
+    ax = plt.subplot(1, 2, i)
     for m, c in zip(methods, colors):
         if i == 0:
-            plt.ylim(0.66, 1.01)
             if m == "NUC Train.":
                 continue
-        #if i == 2 or i == 1:
-        #    if m == "ZIS SE" or m == "ZIS MI" or m == "Data Aug. SE" or m == "Data Aug. MI":
-         #       continue
         mean = tf.reduce_mean(data[d][m], axis=-1)
         plt.plot(thresholds[2:], mean[2:], label=m, color=c, linestyle="--" if m == "Max Softmax" else "-",
-                 linewidth=1., zorder=0 if m != "MC Drop. SE" and m != "MC Drop. MI" else 1)
+                 linewidth=1., zorder=1)
 
     plt.xlabel("Certainty-Schwellenwert")
     plt.ylabel("Recall")
     plt.xticks([0.6, 0.7, 0.8, 0.9, 1.0])
+    ax.set_axisbelow(True)
+    plt.grid(visible=True, color="gainsboro", linestyle='dashed', zorder=0)
 
     if i == 2:
         plt.title("CNN Cifar10")
     elif i == 1:
         plt.title("CNN Cifar100")
-    else:
-        plt.title("EfficientNet-B3 Cars")
 
-plt.legend(loc='center left', bbox_to_anchor=(1.1, 0.5))
-plt.subplots_adjust(left=0.07, right=0.83, bottom=0.16, top=0.9, wspace=0.32, hspace=0.35)
+plt.legend(loc='center left', bbox_to_anchor=(1.02, 0.5))
+plt.subplots_adjust(left=0.07, right=0.83, bottom=0.16, top=0.9, wspace=0.2, hspace=0.35)
 plt.savefig("../plots/ood.pdf")
 plt.show()
+
+plt.figure(figsize=(10, 4))
+effnet_data = data["cars196"]
+for i in range(2):
+    ax = plt.subplot(1, 2, i+1)
+    for m, c in zip(methods, colors):
+        if m == "NUC Train." or (i == 0 and m == "Max Softmax"):
+            continue
+        mean = tf.reduce_mean(effnet_data[m], axis=-1)
+        plt.plot(thresholds[2:], mean[2:], label=m, color=c, linestyle="--" if m == "Max Softmax" else "-",
+                 linewidth=1., zorder=1)
+
+    plt.xlabel("Certainty-Schwellenwert")
+    plt.ylabel("Recall")
+    plt.xticks([0.6, 0.7, 0.8, 0.9, 1.0])
+    ax.set_axisbelow(True)
+    plt.grid(visible=True, color="gainsboro", linestyle='dashed', zorder=0)
+
+    if i == 0:
+        plt.title("Uncertainty Estimation Methoden")
+        plt.ylim(0.68, 1.01)
+    else:
+        plt.title("Vergleich mit maximalem Softmaxscore")
+
+
+plt.legend(loc='center left', bbox_to_anchor=(1.02, 0.5))
+plt.subplots_adjust(left=0.07, right=0.83, bottom=0.16, top=0.9, wspace=0.2, hspace=0.35)
+plt.savefig("../plots/ood_cars.pdf")
+plt.show()
+
 
 
 '''plt.figure(figsize=(10, 2.8))

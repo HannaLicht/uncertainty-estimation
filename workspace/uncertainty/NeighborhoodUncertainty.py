@@ -15,7 +15,7 @@ def evenly_split(data):
 
 class NeighborhoodUncertaintyClassifier:
 
-    def __init__(self, model, xtrain, ytrain, xval, yval, x, path_uncertainty_model=None, k=10):
+    def __init__(self, model, xtrain, ytrain, xval, yval, x, path_uncertainty_model=None, k=3):
         """
         :param x: images for which the uncertainty should be estimated
         :param y: labels of these images if known (for evaluation)

@@ -9,27 +9,6 @@ import tensorflow_probability as tfp
 tfd = tfp.distributions
 
 
-translate = {
-    0: 0,
-    1: 217,
-    2: 482,
-    3: 491,
-    4: 497,
-    5: 566,
-    6: 569,
-    7: 571,
-    8: 574,
-    9: 701
-}
-
-
-def imgnette_to_imgnet_lbls(y):
-    y_ = []
-    for lbl in y:
-        y_.append(translate.get(lbl.numpy()))
-    return y_
-
-
 def create_simple_model():
     inp = tf.keras.Input((28, 28))
     x = tf.keras.layers.Flatten()(inp)
@@ -129,6 +108,19 @@ def adjust_lightness(color, amount=0.5):
     return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
 
 
+COLORS = {
+    "NUC Tr": "green",
+    "NUC Va": "yellowgreen",
+    "MCD SE": adjust_lightness('b', 0.4),
+    "MCD MI": adjust_lightness('tomato', 0.4),
+    "Bag SE": "b",
+    "Bag MI": adjust_lightness('tomato', 0.7),
+    "DA SE": adjust_lightness('b', 1.5),
+    "DA MI": adjust_lightness('tomato', 1.1),
+    "Soft SE": "mediumturquoise",
+}
+
+
 def get_dropout_rate(model):
     layers = model.get_config().get('layers')
     dropout = []
@@ -141,7 +133,7 @@ def get_dropout_rate(model):
     return dropout
 
 
-def split_validation_from_train(xtrain, ytrain, num_classes, num_imgs_per_class):
+def split_validation_from_train(xtrain, ytrain, num_classes, num_imgs_per_class, shape=(-1, 300, 300, 3)):
     count = np.zeros(num_classes)
     xval, yval, x_train, y_train = [], [], [], []
 
@@ -170,24 +162,8 @@ def resize_with_crop_effnet(image, label):
     return i, label
 
 
-def get_train_and_test_data(data, validation_test_split=False):
-    if data == "mnist":
-        (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
-        X_train = X_train.reshape(-1, 28, 28, 1) / 255.0
-        X_test = X_test.reshape(-1, 28, 28, 1) / 255.0
-        y_train = tf.keras.utils.to_categorical(y_train.reshape((-1)), 10)
-        y_test = tf.keras.utils.to_categorical(y_test.reshape((-1)), 10)
-        classes = 10
-
-    elif data == "fashion_mnist":
-        (X_train, y_train), (X_test, y_test) = tf.keras.datasets.fashion_mnist.load_data()
-        X_train = X_train.reshape(-1, 28, 28, 1) / 255.0
-        X_test = X_test.reshape(-1, 28, 28, 1) / 255.0
-        y_train = tf.keras.utils.to_categorical(y_train.reshape((-1)), 10)
-        y_test = tf.keras.utils.to_categorical(y_test.reshape((-1)), 10)
-        classes = 10
-
-    elif data == "cifar100":
+def get_data(data, num_data=None):
+    if data == "cifar100":
         (X_train, y_train), (X_test, y_test) = tf.keras.datasets.cifar100.load_data()
         X_train = X_train.reshape(-1, 32, 32, 3) / 255.0
         X_test = X_test.reshape(-1, 32, 32, 3) / 255.0
@@ -253,73 +229,18 @@ def get_train_and_test_data(data, validation_test_split=False):
 
         xtest, ytest = tf.reshape(xtest, (-1, IMG_SIZE, IMG_SIZE, 3)), tf.reshape(ytest, (-1, 196))
 
-        #print([list(tf.argmax(yval, axis=-1)).count(i) for i in range(196)])
-
-        if validation_test_split:
-            return xtrain, ytrain, xval, yval, xtest, ytest, NUM_CLASSES
-        else:
-            return xtrain, ytrain, xtest, ytest, NUM_CLASSES
-
-    elif data == "imagenet":
-        # https://medium.com/analytics-vidhya/how-to-train-a-neural-network-classifier-on-imagenet-using-tensorflow-2-ede0ea3a35ff
-        # Get imagenet labels
-        labels_path = tf.keras.utils.get_file('ImageNetLabels.txt',
-                                              'https://storage.googleapis.com/download.tensorflow.org/data/ImageNetLabels.txt')
-        imagenet_labels = list(open(labels_path).read().splitlines())
-
-        # Set data_dir to a read-only storage of .tar files
-        # Set write_dir to a w/r storage
-        data_dir = '../ImageNet-ILSVRC2012/tars'
-        write_dir = '../ImageNet-ILSVRC2012/data'
-
-        # Construct a tf.data.Dataset
-        download_config = tfds.download.DownloadConfig(
-            extract_dir=os.path.join(write_dir, 'extracted'),
-            manual_dir=data_dir
-        )
-        download_and_prepare_kwargs = {
-            'download_dir': os.path.join(write_dir, 'downloaded'),
-            'download_config': download_config,
-        }
-        ds_train, ds_val = tfds.load('imagenet2012_subset/10pct',
-                                     data_dir=os.path.join(write_dir, 'data'),
-                                     split=['train', 'validation'],
-                                     shuffle_files=False,
-                                     download=True,
-                                     as_supervised=True,
-                                     download_and_prepare_kwargs=download_and_prepare_kwargs
-                                     )
-        ds_test = tfds.load('imagenet_a',
-                            data_dir=os.path.join(write_dir, 'data'),
-                            split="test",
-                            shuffle_files=False,
-                            download=True,
-                            as_supervised=True,
-                            download_and_prepare_kwargs=download_and_prepare_kwargs
-                            )
-
-        train_images = ds_train.map(resize_with_crop_effnet)
-        val_images = ds_val.map(resize_with_crop_effnet)
-        test_images = ds_test.map(resize_with_crop_effnet)
-
-        X_train, y_train = list(zip(*train_images))
-        X_val, y_val = list(zip(*val_images))
-        X_test, y_test = list(zip(*test_images))
-        X_val, y_val = tf.reshape(X_val, (-1, 300, 300, 3)), tf.keras.utils.to_categorical(y_val, 1000)
-        X_test, y_test = tf.reshape(X_test, (-1, 300, 300, 3)), tf.keras.utils.to_categorical(y_test, 1000)
-
-        if validation_test_split:
-            return X_train, y_train, X_val, y_val, X_test, y_test, 1000
-        else:
-            return X_train, y_train, X_test, y_test, 1000
+        return xtrain, ytrain, xval, yval, xtest, ytest, NUM_CLASSES, [], []
 
     else:
         raise NotImplementedError
 
-    if validation_test_split:
-        X_val, y_val = X_train[int((4./5.)*len(X_train)):], y_train[int((4./5.)*len(y_train)):]
-        X_train, y_train = X_train[:int((4./5.)*len(X_train))], y_train[:int((4./5.)*len(y_train))]
-        return X_train, y_train, X_val, y_val, X_test, y_test, classes
-
+    X_val, y_val = X_train[int((4./5.)*len(X_train)):], y_train[int((4./5.)*len(y_train)):]
+    X_train, y_train = X_train[:int((4./5.)*len(X_train))], y_train[:int((4./5.)*len(y_train))]
+    if num_data is not None:
+        X_val, y_val = X_train[:int(num_data/4)], y_train[:int(num_data/4)]
+        X_left, y_left = X_train[int(num_data*5/4):], y_train[int(num_data*5/4):]
+        X_train, y_train = X_train[int(num_data/4):int(num_data*5/4)], y_train[int(num_data/4):int(num_data*5/4)]
+        return X_train, y_train, X_val, y_val, X_test, y_test, classes, X_left, y_left
     else:
-        return X_train, y_train, X_test, y_test, classes
+        return X_train, y_train, X_val, y_val, X_test, y_test, classes, [], []
+
