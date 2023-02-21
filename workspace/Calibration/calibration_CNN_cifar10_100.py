@@ -5,53 +5,50 @@ import sys
 
 sys.path.append("/home/urz/hlichten")
 from uncertainty.MC_Dropout import MCDropoutEstimator
-from uncertainty.Ensemble import DataAugmentationEns, RandomInitShuffleEns, ENSEMBLE_LOCATION
-from uncertainty.calibration_classification import  plot_regression, uncertainty_diagram
-from functions import get_data, CNN
+from uncertainty.Ensemble import DataAugmentationEns, ENSEMBLE_LOCATION, BaggingEns
+from uncertainty.calibration_classification import plot_regression, uncertainty_diagram, reliability_diagram, \
+    expected_calibration_error
+from functions import get_data, CNN, COLORS, CNN_transfer_learning
 
+fig = plt.figure(figsize=(8.8, 5.6))
+xtrain, ytrain, xval, yval, xtest, ytest, cl = get_data("cifar10", num_data=100)
+model = tf.keras.models.load_model("../models/classification/CNN_cifar10_100")
 
-fig = plt.figure(figsize=(9, 2.8))
-xtrain, ytrain, xval, yval, xtest, ytest, cl, _, _ = get_data("cifar10", num_data=100)
-model = CNN(classes=cl)
-model.load_weights("../models/classification/CNN_cifar10_100/cp.ckpt")
+path_da = ENSEMBLE_LOCATION + "/data_augmentation/CNN_cifar10_100"
+path_bag = ENSEMBLE_LOCATION + "/bagging/CNN_cifar10_100"
 
-for count, (method, title) in enumerate(zip(["data_augmentation", "rand_initialization_shuffle", "mc_drop"],
-                                        ["Data Augmentaion", "ZIS", "MC Dropout"])):
+est = [MCDropoutEstimator(model, xtest, cl, xval=xval, yval=yval),
+       BaggingEns(xtest, cl, path_bag, X_train=xtrain, y_train=ytrain, X_val=xval, y_val=yval, val=True, build_model_function=CNN_transfer_learning),
+       DataAugmentationEns(xtest, cl, path_da, X_train=xtrain, y_train=ytrain, X_val=xval, y_val=yval, val=True, build_model_function=CNN_transfer_learning)]
+colors = [COLORS["MCD MI"], COLORS["Bag MI"], COLORS["DA MI"]]
 
-    plt.subplot(1, 3, count + 1)
-    path = ENSEMBLE_LOCATION + "/" + method + "/CNN_cifar10_100"
+for count, (estimator, title, c) in enumerate(zip(est, ["MC Dropout", "Bagging", "Data Aug."], colors)):
 
-    if method == "mc_drop":
-        estimator = MCDropoutEstimator(model, xtest, cl, xval=xval, yval=yval)
-    elif method == "data_augmentation":
-        estimator = DataAugmentationEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
-    elif method == "rand_initialization_shuffle":
-        estimator = RandomInitShuffleEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)
-    else:
-        raise NotImplementedError
-
-    plt.title(title)
-    regressor = plot_regression(tf.argmax(yval, axis=-1), estimator.val_p_ens,
-                                estimator.uncertainties_mutual_information(val=True),
-                                label=True if title == "MC Dropout" else False)
+    ax = plt.subplot(2, 3, count + 1)
+    ax.set_axisbelow(True)
+    plt.grid(visible=True, color="gainsboro", linestyle='dashed', zorder=0)
+    plot_regression(tf.argmax(yval, axis=-1), estimator.val_p_ens,
+                    estimator.uncertainties_mutual_information(val=True), label=True,
+                    utest=estimator.uncertainties_mutual_information())
     uncertainty_diagram(tf.argmax(ytest, axis=-1), estimator.p_ens,
-                        estimator.uncertainties_mutual_information(), title=title,
-                        label="Testdaten" if title == "MC Dropout" else None, color="green")
+                        estimator.uncertainties_mutual_information(), title="G " + title, color=c, label="Testprädiktionen")
+    plt.xlabel("Mutual Information")
+    plt.legend(loc="upper right")
+
+    ax = plt.subplot(2, 3, count + 4)
+    ax.set_axisbelow(True)
+    plt.grid(visible=True, color="gainsboro", linestyle='dashed', zorder=0)
+    plt.title("Kalibrierung " + title)
+    reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=estimator.p_ens,
+                        certainties=estimator.normalized_certainties_mutual_information(),
+                        label_perfectly_calibrated=False, color=c, num_bins=10)
+    ece = expected_calibration_error(tf.argmax(ytest, axis=-1), tf.argmax(model.predict(xtest), axis=-1),
+                                     estimator.normalized_certainties_mutual_information()).numpy()
+    plt.text(0.02, 0.95, "ECE: {:.3f}".format(ece), color="brown", weight="bold")
     plt.xlabel("Mutual Information")
 
-    if method == "mc_drop":
-        start = 0
-        stop = 0.5
-        step = 0.15
-    else:
-        start = 0
-        stop = 0.65
-        step = 0.2
-
-plt.xticks(np.arange(start, stop, step=step))
-
-plt.subplots_adjust(left=0.06, right=0.89, bottom=0.16, top=0.9, wspace=0.3, hspace=0.35)
-plot_name = "../plots/calibration_CNN_c10_100.png"
+plt.subplots_adjust(left=0.06, right=0.98, bottom=0.1, top=0.94, wspace=0.3, hspace=0.4)
+plot_name = "../plots/mutual_information_CNN_c10_100.png"
 
 plt.savefig(plot_name, dpi=300)
 plt.show()

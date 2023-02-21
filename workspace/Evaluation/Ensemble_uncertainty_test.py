@@ -5,7 +5,7 @@ import time
 
 sys.path.append("/home/urz/hlichten")
 from uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentationEns, RandomInitShuffleEns
-from functions import get_train_and_test_data
+from functions import get_data, build_effnet, CNN, CNN_transfer_learning
 import tensorflow as tf
 
 NUM_MEMBERS = 5
@@ -17,13 +17,11 @@ RUNS = 5
 
 path_to_ensemble = ENSEMBLE_LOCATION + "/" + METHOD + "/" + MODEL
 
-X_train, y_train, X_val, y_val, X_test, y_test, classes = get_train_and_test_data(DATA, validation_test_split=True)
+X_train, y_train, X_val, y_val, X_test, y_test, classes = get_data(DATA)
 
 num_data = None
 if re.match('CNN_cifar10_.*', MODEL):
     num_data = int(MODEL.replace('CNN_cifar10_', ""))
-    X_train = X_train[:num_data]
-    y_train = y_train[:num_data]
 
 if METHOD == "bagging":
     ens = BaggingEns
@@ -37,10 +35,17 @@ elif METHOD == "rand_initialization_shuffle":
 else:
     raise NotImplementedError
 
+if MODEL == "effnetb3":
+    function = build_effnet
+elif MODEL == "CNN_cifar10_100":
+    function = CNN_transfer_learning
+else:
+    function = CNN
+
 for _ in range(RUNS):
     st = time.time()
     estimator = ens(X_test, classes, X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val,
-                    model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=True)
+                    build_model_function=function, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=True)
     end = time.time()
 
     if GET_TIMES:
@@ -51,7 +56,7 @@ for _ in range(RUNS):
 
         st = time.time()
         ens(X_test, classes, X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val,
-            model_name=MODEL, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=False)
+            build_model_function=function, path_to_ensemble=path_to_ensemble, num_members=NUM_MEMBERS, val=False)
         end = time.time()
 
         t[MODEL][key]["uncertainty"] = t[MODEL][key]["uncertainty"] + [round(end - st, 5)]
@@ -59,7 +64,7 @@ for _ in range(RUNS):
         if MODEL != "effnetb3":
             st = time.time()
             ens(X_test, classes, X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val,
-                model_name=MODEL, num_members=NUM_MEMBERS, val=False)
+                build_model_function=function, num_members=NUM_MEMBERS, val=False)
             end = time.time()
             t[MODEL][key]["preparation & uncertainty"] = t[MODEL][key]["preparation & uncertainty"] + [round(end - st, 5)]
 

@@ -24,7 +24,7 @@ def create_simple_model():
     return model
 
 
-def CNN(shape=(32, 32, 3), classes=100):
+def CNN(classes=100, shape=(32, 32, 3)):
     x_input = tf.keras.layers.Input(shape)
     x = tf.keras.layers.ZeroPadding2D(3)(x_input)
     # initial conv layer
@@ -97,6 +97,29 @@ def build_effnet(num_classes, img_size=300):
     return model
 
 
+def CNN_transfer_learning(classes=10, path_pretrained_model="../models/classification/CNN_cifar100"):
+    model_body = CNN(shape=(32, 32, 3), classes=100)
+    model_body.load_weights(path_pretrained_model)
+    out = model_body.layers[-2].output
+    model = tf.keras.Model(inputs=model_body.input, outputs=out)
+
+    # Freeze the pretrained weights
+    model.trainable = False
+
+    # Rebuild top
+    top_dropout_rate = 0.2
+    x = tf.keras.layers.Dropout(top_dropout_rate, name="top_dropout")(model.output)
+    outputs = tf.keras.layers.Dense(classes, activation="softmax", name="pred")(x)
+
+    # Compile
+    model = tf.keras.Model(model_body.input, outputs, name="EfficientNet")
+    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-2)
+    model.compile(
+        optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"]
+    )
+    return model
+
+
 def adjust_lightness(color, amount=0.5):
     import matplotlib.colors as mc
     import colorsys
@@ -110,7 +133,7 @@ def adjust_lightness(color, amount=0.5):
 
 COLORS = {
     "NUC Tr": "green",
-    "NUC Va": "yellowgreen",
+    "NUC Va": adjust_lightness("yellowgreen", 0.85),
     "MCD SE": adjust_lightness('b', 0.4),
     "MCD MI": adjust_lightness('tomato', 0.4),
     "Bag SE": "b",
@@ -162,7 +185,7 @@ def resize_with_crop_effnet(image, label):
     return i, label
 
 
-def get_data(data, num_data=None):
+def get_data(data, num_data=None, active_learning=False):
     if data == "cifar100":
         (X_train, y_train), (X_test, y_test) = tf.keras.datasets.cifar100.load_data()
         X_train = X_train.reshape(-1, 32, 32, 3) / 255.0
@@ -229,18 +252,23 @@ def get_data(data, num_data=None):
 
         xtest, ytest = tf.reshape(xtest, (-1, IMG_SIZE, IMG_SIZE, 3)), tf.reshape(ytest, (-1, 196))
 
-        return xtrain, ytrain, xval, yval, xtest, ytest, NUM_CLASSES, [], []
+        return xtrain, ytrain, xval, yval, xtest, ytest, NUM_CLASSES
 
     else:
         raise NotImplementedError
 
-    X_val, y_val = X_train[int((4./5.)*len(X_train)):], y_train[int((4./5.)*len(y_train)):]
-    X_train, y_train = X_train[:int((4./5.)*len(X_train))], y_train[:int((4./5.)*len(y_train))]
     if num_data is not None:
+        X_left, y_left = X_train, y_train
         X_val, y_val = X_train[:int(num_data/4)], y_train[:int(num_data/4)]
-        X_left, y_left = X_train[int(num_data*5/4):], y_train[int(num_data*5/4):]
-        X_train, y_train = X_train[int(num_data/4):int(num_data*5/4)], y_train[int(num_data/4):int(num_data*5/4)]
-        return X_train, y_train, X_val, y_val, X_test, y_test, classes, X_left, y_left
+        X_train, y_train = X_train[int(num_data/4):int(5*num_data/4)], y_train[int(num_data/4):int(5*num_data/4)]
+        if active_learning:
+            X_val = tf.concat([X_val, X_left[-int(3*num_data/4):]], axis=0)
+            y_val = tf.concat([y_val, y_left[-int(3*num_data/4):]], axis=0)
+            X_left, y_left = X_left[int(5*num_data/4):-int(3*num_data/4)], y_left[int(5*num_data/4):-int(3*num_data/4)]
+            return X_train, y_train, X_val, y_val, X_test, y_test, classes, X_left, y_left
+        return X_train, y_train, X_val, y_val, X_test, y_test, classes
     else:
-        return X_train, y_train, X_val, y_val, X_test, y_test, classes, [], []
+        X_val, y_val = X_train[int((4. / 5.) * len(X_train)):], y_train[int((4. / 5.) * len(y_train)):]
+        X_train, y_train = X_train[:int((4. / 5.) * len(X_train))], y_train[:int((4. / 5.) * len(y_train))]
+        return X_train, y_train, X_val, y_val, X_test, y_test, classes
 

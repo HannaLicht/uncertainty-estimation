@@ -106,7 +106,7 @@ def uncertainty_diagram(y_true, y_pred, uncertainties, title="", label=None, col
         plt.legend(bbox_to_anchor=(0.5, 1))
 
 
-def plot_regression(y_true, y_pred, uncertainties, title="", label=False, text="", style="-"):
+def plot_regression(y_true, y_pred, uncertainties, title="", label=False, text="", style="-", utest=None):
     y_pred = np.argmax(y_pred, axis=-1).astype(np.float32)
     correct = (y_pred == y_true)
 
@@ -116,7 +116,11 @@ def plot_regression(y_true, y_pred, uncertainties, title="", label=False, text="
     plt.ylabel("Accuracy")
 
     y = [1. if c else 0. for c in correct]
-    x = np.linspace(start=tf.reduce_min(uncertainties), stop=tf.reduce_max(uncertainties), num=100)
+    if utest is None:
+        x = np.linspace(start=tf.reduce_min(uncertainties), stop=tf.reduce_max(uncertainties), num=100)
+    else:
+        x = np.linspace(start=tf.reduce_min(utest), stop=tf.reduce_max(utest), num=100)
+
     regressor, normalized_certainties = isotonic_regression(uncertainties, y, x)
     plt.plot(x, normalized_certainties, color="black", label="G " + text if label else None, zorder=0, linewidth=1.,
              linestyle=style)

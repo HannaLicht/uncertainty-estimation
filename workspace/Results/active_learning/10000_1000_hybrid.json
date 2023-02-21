@@ -1,0 +1,102 @@
+{
+    "11000": {
+        "just_divers": [],
+        "softmax_entropy": [],
+        "NUC": [],
+        "NUC Tr": [],
+        "MC_drop": {
+            "SE": [],
+            "MI": []
+        }
+    },
+    "12000": {
+        "just_divers": [],
+        "softmax_entropy": [],
+        "NUC": [],
+        "NUC Tr": [],
+        "MC_drop": {
+            "SE": [],
+            "MI": []
+        }
+    },
+    "13000": {
+        "just_divers": [],
+        "softmax_entropy": [],
+        "NUC": [],
+        "NUC Tr": [],
+        "MC_drop": {
+            "SE": [],
+            "MI": []
+        }
+    },
+    "14000": {
+        "just_divers": [],
+        "softmax_entropy": [],
+        "NUC": [],
+        "NUC Tr": [],
+        "MC_drop": {
+            "SE": [],
+            "MI": []
+        }
+    },
+    "15000": {
+        "just_divers": [],
+        "softmax_entropy": [],
+        "NUC": [],
+        "NUC Tr": [],
+        "MC_drop": {
+            "SE": [],
+            "MI": []
+        }
+    },
+    "16000": {
+        "just_divers": [],
+        "softmax_entropy": [],
+        "NUC": [],
+        "NUC Tr": [],
+        "MC_drop": {
+            "SE": [],
+            "MI": []
+        }
+    },
+    "17000": {
+        "just_divers": [],
+        "softmax_entropy": [],
+        "NUC": [],
+        "NUC Tr": [],
+        "MC_drop": {
+            "SE": [],
+            "MI": []
+        }
+    },
+    "18000": {
+        "just_divers": [],
+        "softmax_entropy": [],
+        "NUC": [],
+        "NUC Tr": [],
+        "MC_drop": {
+            "SE": [],
+            "MI": []
+        }
+    },
+    "19000": {
+        "just_divers": [],
+        "softmax_entropy": [],
+        "NUC": [],
+        "NUC Tr": [],
+        "MC_drop": {
+            "SE": [],
+            "MI": []
+        }
+    },
+    "20000": {
+        "just_divers": [],
+        "softmax_entropy": [],
+        "NUC": [],
+        "NUC Tr": [],
+        "MC_drop": {
+            "SE": [],
+            "MI": []
+        }
+    }
+}

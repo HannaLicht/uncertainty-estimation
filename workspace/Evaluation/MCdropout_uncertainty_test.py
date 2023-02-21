@@ -3,26 +3,31 @@ import re
 import time
 import sys
 sys.path.append("/home/urz/hlichten")
-from functions import CNN, get_train_and_test_data, build_effnet
+from functions import CNN, get_data, build_effnet, CNN_transfer_learning
 from uncertainty.MC_Dropout import MCDropoutEstimator
 import tensorflow as tf
 
 T = 50
 MODEL = "CNN_cifar100"
-CHECKPOINT_PATH = "../models/classification/" + MODEL + "/cp.ckpt"
+MODEL_PATH = "../models/classification/" + MODEL
 GET_TIMES = True
+
+
+num_data = None
+if re.match('CNN_cifar10_.*', MODEL):
+    num_data = int(MODEL.replace('CNN_cifar10_', ""))
 
 if re.match("CNN_cifar10.*", MODEL):
     data = "cifar100" if MODEL == "CNN_cifar100" else "cifar10"
-    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data(data, validation_test_split=True)
-    model = CNN(classes=num_classes)
-    model.load_weights(CHECKPOINT_PATH)
+    _, _, x_val, y_val, x_test, y_test, num_classes = get_data(data, num_data)
+    model = CNN(classes=num_classes) if MODEL != "CNN_cifar10_100" else CNN_transfer_learning(num_classes)
 elif MODEL == "effnetb3":
-    _, _, x_val, y_val, x_test, y_test, num_classes = get_train_and_test_data("cars196", validation_test_split=True)
+    _, _, x_val, y_val, x_test, y_test, num_classes = get_data("cars196")
     model = build_effnet(num_classes)
-    model.load_weights(CHECKPOINT_PATH)
 else:
     raise NotImplementedError
+
+model = tf.keras.models.load_model(MODEL_PATH)
 
 st = time.time()
 estimator = MCDropoutEstimator(model, x_test, num_classes, T, xval=x_val, yval=y_val)
@@ -34,8 +39,7 @@ if GET_TIMES:
 
     t[MODEL]["MC Dropout"]["with calibration"] = t[MODEL]["MC Dropout"]["with calibration"] + [round(end - st, 5)]
 
-    model = build_effnet(num_classes) if MODEL == "effnetb3" else CNN(classes=num_classes)
-    model.load_weights(CHECKPOINT_PATH)
+    model = tf.keras.models.load_model(MODEL_PATH)
     st = time.time()
     MCDropoutEstimator(model, x_test, num_classes, T)
     end = time.time()

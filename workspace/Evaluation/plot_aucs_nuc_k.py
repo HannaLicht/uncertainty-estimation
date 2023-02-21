@@ -15,34 +15,70 @@ with open('../Results/auroc_aupr.json') as json_file:
     data = json.load(json_file)
 
 # AUROCs for nuc trained on validation data
-c10_1000_val_roc = data["nuc_val"]["CNN_cifar10_1000"]["auroc"]
-c10_10000_val_roc = data["nuc_val"]["CNN_cifar10_10000"]["auroc"]
-c10_val_roc = data["nuc_val"]["CNN_cifar10"]["auroc"]
-c100_val_roc = data["nuc_val"]["CNN_cifar100"]["aupr"]
-effnet_val_roc = data["nuc_val"]["effnetb3"]["auroc"]
+c10_1000_val_roc = data["NUC Va"]["CNN_cifar10_1000"]["auroc"]
+c10_10000_val_roc = data["NUC Va"]["CNN_cifar10_10000"]["auroc"]
+c10_val_roc = data["NUC Va"]["CNN_cifar10"]["auroc"]
+c100_val_roc = data["NUC Va"]["CNN_cifar100"]["aupr"]
+effnet_val_roc = data["NUC Va"]["effnetb3"]["auroc"]
 
 # AUPRs for nuc trained on validation data
-c10_1000_val_pr = data["nuc_val"]["CNN_cifar10_1000"]["aupr"]
-c10_10000_val_pr = data["nuc_val"]["CNN_cifar10_10000"]["aupr"]
-c10_val_pr = data["nuc_val"]["CNN_cifar10"]["aupr"]
-c100_val_pr = data["nuc_val"]["CNN_cifar100"]["aupr"]
-effnet_val_pr = data["nuc_val"]["effnetb3"]["aupr"]
+c10_1000_val_pr = data["NUC Va"]["CNN_cifar10_1000"]["aupr"]
+c10_10000_val_pr = data["NUC Va"]["CNN_cifar10_10000"]["aupr"]
+c10_val_pr = data["NUC Va"]["CNN_cifar10"]["aupr"]
+c100_val_pr = data["NUC Va"]["CNN_cifar100"]["aupr"]
+effnet_val_pr = data["NUC Va"]["effnetb3"]["aupr"]
 
 # AUROCs for nuc trained on train data
-c10_100_tra_roc = data["nuc_train"]["CNN_cifar10_100"]["auroc"]
-c10_1000_tra_roc = data["nuc_train"]["CNN_cifar10_1000"]["auroc"]
-c10_10000_tra_roc = data["nuc_train"]["CNN_cifar10_10000"]["auroc"]
-c10_tra_roc = data["nuc_train"]["CNN_cifar10"]["auroc"]
-c100_tra_roc = data["nuc_train"]["CNN_cifar100"]["auroc"]
-effnet_tra_roc = data["nuc_train"]["effnetb3"]["auroc"]
+c10_100_tra_roc = data["NUC Tr"]["CNN_cifar10_100"]["auroc"]
+c10_1000_tra_roc = data["NUC Tr"]["CNN_cifar10_1000"]["auroc"]
+c10_10000_tra_roc = data["NUC Tr"]["CNN_cifar10_10000"]["auroc"]
+c10_tra_roc = data["NUC Tr"]["CNN_cifar10"]["auroc"]
+c100_tra_roc = data["NUC Tr"]["CNN_cifar100"]["auroc"]
+effnet_tra_roc = data["NUC Tr"]["effnetb3"]["auroc"]
 
 # AUPRs for nuc trained on train data
-c10_100_tra_pr = data["nuc_train"]["CNN_cifar10_100"]["aupr"]
-c10_1000_tra_pr = data["nuc_train"]["CNN_cifar10_1000"]["aupr"]
-c10_10000_tra_pr = data["nuc_train"]["CNN_cifar10_10000"]["aupr"]
-c10_tra_pr = data["nuc_train"]["CNN_cifar10"]["aupr"]
-c100_tra_pr = data["nuc_train"]["CNN_cifar100"]["aupr"]
-effnet_tra_pr = data["nuc_train"]["effnetb3"]["aupr"]
+c10_100_tra_pr = data["NUC Tr"]["CNN_cifar10_100"]["aupr"]
+c10_1000_tra_pr = data["NUC Tr"]["CNN_cifar10_1000"]["aupr"]
+c10_10000_tra_pr = data["NUC Tr"]["CNN_cifar10_10000"]["aupr"]
+c10_tra_pr = data["NUC Tr"]["CNN_cifar10"]["aupr"]
+c100_tra_pr = data["NUC Tr"]["CNN_cifar100"]["aupr"]
+effnet_tra_pr = data["NUC Tr"]["effnetb3"]["aupr"]
+
+
+def plot_eces():
+    with open('../Results/eces.json') as json_file:
+        eces = json.load(json_file)
+
+    colors = [adjust_lightness('b', 1.6), adjust_lightness('b', 1.3), adjust_lightness('b', 0.8),
+              adjust_lightness('b', 0.4), 'tomato', 'yellowgreen']
+    lbls = ["Cifar10 (100 Bilder)", "Cifar10 (1000 Bilder)", "Cifar10 (10000 Bilder)", "Cifar10", "Cifar100", "Cars"]
+    models = ["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_cifar10_10000", "CNN_cifar10", "CNN_cifar100", "effnetb3"]
+    plt.figure(figsize=(9, 3))
+
+    for count in range(2):
+        ax = plt.subplot(1, 2, count+1)
+        ax.set_axisbelow(True)
+        plt.ylim(-0.01, 0.41)
+        plt.grid(visible=True, color="gainsboro", linestyle='dashed', zorder=0)
+        plt.xlabel("Anzahl Nachbarn (k)")
+        plt.ylabel("ECE")
+        plt.title("NUC Trainingsdaten" if count else "NUC Validierungsdaten")
+
+        for (model, lbl, c) in zip(models, lbls, colors):
+            try:
+                values = eces[model]["NUC Tr" if count else "NUC Va"]
+            except:
+                continue
+            means = tf.reduce_mean(values, axis=-1)
+            print(means)
+            stddevs = tf.math.reduce_std(values, axis=-1)
+            plt.plot(x, means, label=lbl, marker='.', color=c, linestyle='dashed' if not valid else 'solid', zorder=1)
+            plt.fill_between(x, means + stddevs, means - stddevs, color=c, alpha=0.1)
+
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.subplots_adjust(left=0.08, right=0.75, bottom=0.16, top=0.91, wspace=0.25, hspace=0.35)
+    plt.savefig('../plots/ECEs_nuc_different_k.pdf')
+    plt.show()
 
 
 def plot_curves(auroc, valid):
@@ -78,8 +114,7 @@ def plot_curves(auroc, valid):
 
     for mean, stdev, c, label in zip(means, stdevs, colors, lbls):
         plt.plot(x, mean, label=label, marker='.', color=c, linestyle='dashed' if not valid else 'solid', zorder=1)
-        plt.fill_between(x, mean + stdev, mean, color=c, alpha=0.15)
-        plt.fill_between(x, mean, mean - stdev, color=c, alpha=0.15)
+        plt.fill_between(x, mean + stdev, mean - stdev, color=c, alpha=0.1)
 
 
 plt.figure(figsize=(9, 3))
@@ -95,6 +130,7 @@ ax.set_axisbelow(True)
 plt.subplots_adjust(left=0.08, right=0.75, bottom=0.16, top=0.93, wspace=0.25, hspace=0.35)
 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 plot_name = '../plots/AUCs_nuc_different_k_valid.pdf' if valid else '../plots/AUCs_nuc_different_k_train.pdf'
-
 plt.savefig(plot_name)
 plt.show()
+
+plot_eces()

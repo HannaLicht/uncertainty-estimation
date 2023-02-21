@@ -23,9 +23,8 @@ class Ensemble(SamplingBasedEstimator):
 
     members = []
 
-    def __init__(self, X, num_classes, path_to_ensemble="",
-                 X_train=None, y_train=None, X_val=None, y_val=None, model_name=None,
-                 optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5, val=False):
+    def __init__(self, X, num_classes, path_to_ensemble="", X_train=None, y_train=None, X_val=None, y_val=None,
+                 build_model_function=None, num_members=5, val=False):
 
         self.X, self.num_classes = X, num_classes
         if val:
@@ -37,18 +36,16 @@ class Ensemble(SamplingBasedEstimator):
             self.predict()
         except:
             assert X_train is not None and y_train is not None and X_val is not None and y_val is not None \
-                   and model_name is not None
+                   and build_model_function is not None
             print("Ensembe could not be found at path: " + str(path_to_ensemble))
             print("Ensemble will be trained now")
-            self.init_new_ensemble(path_to_ensemble, X_train, y_train, X_val, y_val, model_name, num_members,
-                                   optimizer, loss, metrics)
+            self.init_new_ensemble(path_to_ensemble, X_train, y_train, X_val, y_val, build_model_function, num_members)
 
     @abstractmethod
     def prepare_data(self, X_train, y_train, num_members):
         """create ensemble based on certain approaches"""
 
-    def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_val, y_val, model_name, num_members,
-                          optimizer, loss, metrics):
+    def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_val, y_val, build_model_function, num_members):
         if y_train[0].shape == (128, 128, 1):
             X_train = tf.reshape(X_train, (-1, 128, 128, 3))
             X_val = tf.reshape(X_val, (-1, 128, 128, 3))
@@ -56,16 +53,30 @@ class Ensemble(SamplingBasedEstimator):
             y_val = tf.reshape(y_val, (-1, 128, 128, 1))
 
         train_imgs, train_lbls = self.prepare_data(X_train, y_train, num_members)
-        self.init_members(model_name, num_members, optimizer, loss, metrics)
+        self.init_members(build_model_function, num_members)
 
-        rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
-        #early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=15, restore_best_weights=True)
-        if model_name == "effnetb3":
+        if build_model_function == build_effnet:
             early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=15,
                                        restore_best_weights=True)
+            early_stop_transfer = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=3,
+                                                restore_best_weights=True)
         else:
             early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=15,
                                        restore_best_weights=True)
+            early_stop_transfer = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=3,
+                                                restore_best_weights=True)
+        rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
+
+        if build_model_function != CNN:
+            # transferlearning
+            # first step
+            for index, (model, imgs, lbls) in enumerate(zip(self.members, train_imgs, train_lbls)):
+                model.fit(imgs, lbls, validation_data=(X_val, y_val), epochs=1000,
+                          batch_size=128 if len(lbls) >= 1000 else 32, callbacks=[early_stop_transfer])
+                # if convergence: begin second step
+                model.trainable = True
+                optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3 if build_model_function != build_effnet else 1e-4)
+                model.compile(optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"])
 
         # train ensemble members
         for index, (model, imgs, lbls) in enumerate(zip(self.members, train_imgs, train_lbls)):
@@ -76,31 +87,11 @@ class Ensemble(SamplingBasedEstimator):
 
         self.predict()
 
-    def init_members(self, model_name, num_members, optimizer, loss, metrics):
-        if model_name == "simple_seq_model":
-            self.members = [create_simple_model() for _ in range(num_members)]
-        elif re.match("CNN_cifar10_.*", model_name) or model_name == "CNN_cifar10":
-            self.members = [CNN(classes=10) for _ in range(num_members)]
-            for member in self.members:
-                member.load_weights("../models/classification/CNN_cifar100/cp.ckpt")
-                member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
-        elif model_name == "CNN_cifar5":
-            self.members = [CNN(classes=5) for _ in range(num_members)]
-            for member in self.members:
-                member.load_weights("../models/classification/CNN_cifar100/cp.ckpt")
-                member.compile(optimizer=optimizer, loss=loss, metrics=metrics)
-        elif model_name == "CNN_cifar100":
-            self.members = [CNN(classes=100) for _ in range(num_members)]
-        elif model_name == "CNN_cifar50":
-            self.members = [CNN(classes=50) for _ in range(num_members)]
-        elif model_name == "CNN_mnist5":
-            self.members = [CNN(shape=(28, 28, 1), classes=5) for _ in range(num_members)]
-        elif model_name == "effnetb3":
-            self.members = [build_effnet(self.num_classes) for _ in range(num_members)]
-        elif model_name == "modified_UNet":
-            self.members = [unet_model(output_channels=self.num_classes) for _ in range(num_members)]
-        else:
-            raise NotImplementedError
+    def init_members(self, build_model_function, num_members):
+        self.members = [build_model_function(self.num_classes) for _ in range(num_members)]
+        for member in self.members:
+            optimizer = tf.keras.optimizers.Adam(lr=1e-2)
+            member.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 
     def predict(self):
         self.predictions = [model.predict(self.X, batch_size=32) for model in self.members]
@@ -112,12 +103,11 @@ class Ensemble(SamplingBasedEstimator):
 
 class BaggingEns(Ensemble):
 
-    def __init__(self, X, num_classes, path_to_ensemble="",
-                 X_train=None, y_train=None, X_val=None, y_val=None, model_name=None,
-                 optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5, val=False):
+    def __init__(self, X, num_classes, path_to_ensemble="", X_train=None, y_train=None, X_val=None, y_val=None,
+                 build_model_function=None, num_members=5, val=False):
         self.estimator_name = "Ensemble - Bagging"
-        super().__init__(X, num_classes, path_to_ensemble, X_train, y_train, X_val, y_val, model_name,
-                         optimizer, loss, metrics, num_members, val)
+        super().__init__(X, num_classes, path_to_ensemble, X_train, y_train, X_val, y_val, build_model_function,
+                        num_members, val)
 
     def prepare_data(self, xtrain, ytrain, num_members):
         train_imgs, train_lbls = [], []
@@ -131,12 +121,11 @@ class BaggingEns(Ensemble):
 
 class RandomInitShuffleEns(Ensemble):
 
-    def __init__(self, X, num_classes, path_to_ensemble="",
-                 X_train=None, y_train=None, X_val=None, y_val=None, model_name=None,
-                 optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5, val=False):
+    def __init__(self, X, num_classes, path_to_ensemble="", X_train=None, y_train=None, X_val=None, y_val=None,
+                 build_model_function=None, num_members=5, val=False):
         self.estimator_name = "Ensemble - Random Initialization & Data Shuffle"
-        super().__init__(X, num_classes, path_to_ensemble, X_train, y_train, X_val, y_val, model_name,
-                         optimizer, loss, metrics, num_members, val)
+        super().__init__(X, num_classes, path_to_ensemble, X_train, y_train, X_val, y_val, build_model_function,
+                         num_members, val)
 
     def prepare_data(self, xtrain, ytrain, num_members):
         return [xtrain for _ in range(num_members)], [ytrain for _ in range(num_members)]
@@ -144,15 +133,13 @@ class RandomInitShuffleEns(Ensemble):
 
 class DataAugmentationEns(Ensemble):
 
-    def __init__(self, X, num_classes, path_to_ensemble="",
-                 X_train=None, y_train=None, X_val=None, y_val=None, model_name=None,
-                 optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'], num_members=5, val=False):
+    def __init__(self, X, num_classes, path_to_ensemble="", X_train=None, y_train=None, X_val=None, y_val=None,
+                 build_model_function=None, num_members=5, val=False):
         self.estimator_name = "Ensemble - Data Augmentation"
-        super().__init__(X, num_classes, path_to_ensemble, X_train, y_train, X_val, y_val, model_name,
-                         optimizer, loss, metrics, num_members, val)
+        super().__init__(X, num_classes, path_to_ensemble, X_train, y_train, X_val, y_val, build_model_function,
+                         num_members, val)
 
-    def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_val, y_val, model_name, num_members,
-                          optimizer, loss, metrics):
+    def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_val, y_val, build_model_function, num_members):
         if y_train[0].shape == (128, 128, 1):
             X_train = tf.reshape(X_train, (-1, 128, 128, 3))
             X_val = tf.reshape(X_val, (-1, 128, 128, 3))
@@ -160,17 +147,29 @@ class DataAugmentationEns(Ensemble):
             y_val = tf.reshape(y_val, (-1, 128, 128, 1))
 
         data_generator = self.prepare_data(X_train, y_train, num_members)
-        self.init_members(model_name, num_members, optimizer, loss, metrics)
+        self.init_members(build_model_function, num_members)
 
-        rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
-        if model_name == "effnetb3":
-            early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=15, 
+        if build_model_function == build_effnet:
+            early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=15,
                                        restore_best_weights=True)
+            early_stop_transfer = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=3,
+                                                restore_best_weights=True)
         else:
-            early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=15, 
+            early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=15,
                                        restore_best_weights=True)
-        #early_stop = EarlyStopping(monitor='val_accuracy', mode='max', verbose=1, patience=15,
-         #                          restore_best_weights=True)
+            early_stop_transfer = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=3,
+                                                restore_best_weights=True)
+        rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
+
+        if build_model_function != CNN:
+            # transferlearning
+            # first step
+            for index, model in enumerate(self.members):
+                model.fit(data_generator, validation_data=(X_val, y_val), epochs=1000, callbacks=[early_stop_transfer])
+                # if convergence: begin second step
+                model.trainable = True
+                optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3 if build_model_function != build_effnet else 1e-4)
+                model.compile(optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"])
 
         # train ensemble members
         for index, model in enumerate(self.members):

@@ -8,11 +8,11 @@ from uncertainty.MC_Dropout import MCDropoutEstimator
 from uncertainty.Ensemble import BaggingEns, DataAugmentationEns, RandomInitShuffleEns, ENSEMBLE_LOCATION
 from uncertainty.calibration_classification import reliability_diagram, uncertainty_diagram, expected_calibration_error, \
     plot_regression
-from functions import get_data, CNN
+from functions import get_data, CNN, COLORS
 
-method = "ensemble"
+method = "data_augmentation"
 metric = "MI"
-isontonic_reg = True
+isontonic_reg = False
 
 
 fig = plt.figure(figsize=(12, 3.5)) if isontonic_reg else plt.figure(figsize=(10, 3))
@@ -20,10 +20,9 @@ fig = plt.figure(figsize=(12, 3.5)) if isontonic_reg else plt.figure(figsize=(10
 for count, (model_name, title) in enumerate(zip(["CNN_cifar10_1000", "CNN_cifar10", "CNN_cifar100"],
                                                 ["CNN Cifar10 (1000 Bilder)", "CNN Cifar10 (gesamt)", "CNN Cifar100 (gesamt)"])):
 
-    xtrain, ytrain, xval, yval, xtest, ytest, cl, _, _ = get_data("cifar10" if count != 2 else "cifar100",
-                                                                  num_data=1000 if count == 0 else None)
-    model = CNN(classes=cl)
-    model.load_weights("../models/classification/" + model_name + "/cp.ckpt")
+    xtrain, ytrain, xval, yval, xtest, ytest, cl = get_data("cifar10" if count != 2 else "cifar100",
+                                                            num_data=1000 if count == 0 else None)
+    model = tf.keras.models.load_model("../models/classification/" + model_name)
     ax = plt.subplot(1, 3, count + 1)
     ax.set_axisbelow(True)
     plt.grid(visible=True, color="gainsboro", linestyle='dashed', zorder=0)
@@ -31,27 +30,27 @@ for count, (model_name, title) in enumerate(zip(["CNN_cifar10_1000", "CNN_cifar1
     path = ENSEMBLE_LOCATION + "/" + method + "/" + model_name
 
     if method == "mc_drop":
+        names = ["MCD"]
         estimator = [MCDropoutEstimator(model, xtest, cl, xval=xval, yval=yval)]
     elif method == "bagging":
-        estimator = [BaggingEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)]
+        names = ["Bag"]
+        estimator = [BaggingEns(xtest, cl, path, X_val=xval, y_val=yval, val=True, build_model_function=CNN)]
     elif method == "data_augmentation":
-        estimator = [DataAugmentationEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)]
-    elif method == "rand_initialization_shuffle":
-        estimator = [RandomInitShuffleEns(xtest, cl, path, X_val=xval, y_val=yval, val=True)]
-    colors = [["darkblue"], ["yellowgreen"]]
+        names = ["DA"]
+        estimator = [DataAugmentationEns(xtest, cl, path, X_val=xval, y_val=yval, val=True, build_model_function=CNN)]
     labels = [""]
     styles = ["-"]
     if method == "ensemble":
         estimator = [BaggingEns(xtest, cl, ENSEMBLE_LOCATION + "/bagging/" + model_name, X_val=xval, y_val=yval,
-                                val=True),
+                                val=True, build_model_function=CNN),
                      DataAugmentationEns(xtest, cl, ENSEMBLE_LOCATION + "/data_augmentation/" + model_name,
-                                         X_val=xval, y_val=yval, val=True)]
-        colors = [["darkblue", "royalblue"], ["green", "yellowgreen"]]
+                                         X_val=xval, y_val=yval, val=True, build_model_function=CNN)]
         labels = ["Bagging", "Data Aug."]
         styles = ["-", "--"]
+        names = ["Bag", "DA"]
+    colors = [[COLORS[n + " SE"] for n in names], [COLORS[n + " MI"] for n in names]]
 
     if isontonic_reg:
-
         if metric == "SE":
             for est, color, label, style in zip(estimator, colors[0], labels, styles):
                 regressor = plot_regression(tf.argmax(yval, axis=-1), est.val_p_ens,
@@ -75,11 +74,6 @@ for count, (model_name, title) in enumerate(zip(["CNN_cifar10_1000", "CNN_cifar1
                 stop = 4.1
                 step = 1
 
-            '''plt.plot([2, 2], [0, regressor.predict([2])[0]], color="gray", linestyle='dashed', zorder=2)
-            plt.plot([start, 2], [regressor.predict([2])[0], regressor.predict([2])[0]], color="gray",
-                     linestyle='dashed', zorder=2)
-            plt.scatter(2, regressor.predict([2])[0], c="black", marker='o', zorder=10)
-'''
         else:
             for est, color, label, style in zip(estimator, colors[1], labels, styles):
                 lbl = "Testprädiktionen Bag." if label == "Bagging" else "Testprädiktionen DA"
@@ -111,11 +105,11 @@ for count, (model_name, title) in enumerate(zip(["CNN_cifar10_1000", "CNN_cifar1
         estimator = estimator[0]
         reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=estimator.p_ens,
                             certainties=estimator.normalized_certainties_shannon_entropy(),
-                            label_perfectly_calibrated=False, num_bins=10,
+                            label_perfectly_calibrated=False, color=colors[0][0], num_bins=10,
                             method="SE" if model_name == "CNN_cifar100" else None)
         reliability_diagram(y_true=tf.argmax(ytest, axis=-1), output=estimator.p_ens, num_bins=10,
                             certainties=estimator.normalized_certainties_mutual_information(),
-                            label_perfectly_calibrated=False, color="yellowgreen",
+                            label_perfectly_calibrated=False, color=colors[1][0],
                             method="MI" if model_name == "CNN_cifar100" else None)
 
         ece_se = expected_calibration_error(tf.argmax(ytest, axis=-1), estimator.get_ensemble_prediction(),
