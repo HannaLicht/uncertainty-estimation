@@ -1,6 +1,3 @@
-import os
-import re
-
 import numpy as np
 import tensorflow as tf
 from keras.applications import efficientnet
@@ -9,63 +6,55 @@ import tensorflow_probability as tfp
 tfd = tfp.distributions
 
 
-def create_simple_model():
-    inp = tf.keras.Input((28, 28))
-    x = tf.keras.layers.Flatten()(inp)
-    x = tf.keras.layers.Dense(512, activation='relu', input_shape=(784,))(x)
-    x = tf.keras.layers.Dropout(0.5)(x)
-    out = tf.keras.layers.Dense(10, activation='softmax')(x)
+def adjust_lightness(color, amount=0.5):
+    import matplotlib.colors as mc
+    import colorsys
+    try:
+        c = mc.cnames[color]
+    except:
+        c = color
+    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
+    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
 
-    model = tf.keras.Model(inputs=inp, outputs=out)
-    model.compile(optimizer='adam',
-                loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),
-                metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
 
-    return model
+COLORS = {
+    "NUC Tr": "green",
+    "NUC Va": adjust_lightness("yellowgreen", 0.85),
+    "MCD PE": adjust_lightness('b', 0.4),
+    "MCD MI": adjust_lightness('tomato', 0.4),
+    "Bag PE": "b",
+    "Bag MI": adjust_lightness('tomato', 0.7),
+    "DA PE": adjust_lightness('b', 1.5),
+    "DA MI": adjust_lightness('tomato', 1.1),
+    "SE": "mediumturquoise",
+}
 
 
 def CNN(classes=100, shape=(32, 32, 3)):
     x_input = tf.keras.layers.Input(shape)
-    x = tf.keras.layers.ZeroPadding2D(3)(x_input)
     # initial conv layer
-    x = tf.keras.layers.Conv2D(32, 7, padding='same', strides=2)(x)
+    x = tf.keras.layers.Conv2D(32, 5, padding='same')(x_input)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Dropout(0.2)(x)
     x = tf.keras.layers.Activation('relu')(x)
     x = tf.keras.layers.MaxPool2D(pool_size=3, strides=2, padding='same')(x)
 
-    x_skip = x
-    x = tf.keras.layers.Conv2D(32, 3, padding='same', strides=2)(x)
-    x = tf.keras.layers.BatchNormalization(axis=3)(x)
+    x = tf.keras.layers.Conv2D(32, 3, padding='same')(x)
+    x = tf.keras.layers.MaxPool2D(strides=2, padding='same')(x)
     x = tf.keras.layers.Dropout(0.2)(x)
     x = tf.keras.layers.Activation('relu')(x)
     x = tf.keras.layers.Conv2D(32, 3, padding='same')(x)
-    x = tf.keras.layers.BatchNormalization(axis=3)(x)
-    x_skip = tf.keras.layers.Conv2D(32, 1,  strides=2)(x_skip)
-    x = tf.keras.layers.Add()([x, x_skip])
+    x = tf.keras.layers.MaxPool2D(strides=2, padding='same')(x)
     x = tf.keras.layers.Activation('relu')(x)
-
-    x_skip = x
-    x = tf.keras.layers.Conv2D(64, 3, padding='same', strides=2)(x)
-    x = tf.keras.layers.BatchNormalization(axis=3)(x)
     x = tf.keras.layers.Dropout(0.3)(x)
-    x = tf.keras.layers.Activation('relu')(x)
     x = tf.keras.layers.Conv2D(64, 3, padding='same')(x)
-    x = tf.keras.layers.BatchNormalization(axis=3)(x)
-    x_skip = tf.keras.layers.Conv2D(64, 1,  strides=2)(x_skip)
-    x = tf.keras.layers.Add()([x, x_skip])
     x = tf.keras.layers.Activation('relu')(x)
-
     x = tf.keras.layers.AveragePooling2D(2, padding='same')(x)
+
     x = tf.keras.layers.Flatten()(x)
     x = tf.keras.layers.Dropout(0.3)(x)
     x = tf.keras.layers.Dense(256, activation='relu')(x)
-    if classes > 10:
-        x = tf.keras.layers.Dense(classes, activation='softmax')(x)
-    else:
-        if shape == (32, 32, 3):
-            x = tf.keras.layers.Dense(100, activation='relu')(x)
-        x = tf.keras.layers.Dense(classes, activation='softmax')(x)
+    x = tf.keras.layers.Dense(classes, activation='softmax')(x)
     model = tf.keras.Model(inputs=x_input, outputs=x)
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
@@ -120,43 +109,8 @@ def CNN_transfer_learning(classes=10, path_pretrained_model="../models/classific
     return model
 
 
-def adjust_lightness(color, amount=0.5):
-    import matplotlib.colors as mc
-    import colorsys
-    try:
-        c = mc.cnames[color]
-    except:
-        c = color
-    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
-    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
-
-
-COLORS = {
-    "NUC Tr": "green",
-    "NUC Va": adjust_lightness("yellowgreen", 0.85),
-    "MCD SE": adjust_lightness('b', 0.4),
-    "MCD MI": adjust_lightness('tomato', 0.4),
-    "Bag SE": "b",
-    "Bag MI": adjust_lightness('tomato', 0.7),
-    "DA SE": adjust_lightness('b', 1.5),
-    "DA MI": adjust_lightness('tomato', 1.1),
-    "Soft SE": "mediumturquoise",
-}
-
-
-def get_dropout_rate(model):
-    layers = model.get_config().get('layers')
-    dropout = []
-
-    for layer in layers:
-        if layer.get('class_name') == 'Dropout':
-            dropout.append(layer.get('config').get('rate'))
-    dropout = tf.math.reduce_mean(dropout)
-
-    return dropout
-
-
-def split_validation_from_train(xtrain, ytrain, num_classes, num_imgs_per_class, shape=(-1, 300, 300, 3)):
+# use it for the cars196 dataset: many classes but small dataset -> make sure a split evently divides dataset
+def split_validation_from_train(xtrain, ytrain, num_classes, num_imgs_per_class):
     count = np.zeros(num_classes)
     xval, yval, x_train, y_train = [], [], [], []
 
@@ -176,7 +130,7 @@ def split_validation_from_train(xtrain, ytrain, num_classes, num_imgs_per_class,
     return x_train, y_train, xval, yval
 
 
-# preprocess function
+# preprocess function for EfficientNet
 def resize_with_crop_effnet(image, label):
     i = image
     i = tf.cast(i, tf.float32)
@@ -203,7 +157,7 @@ def get_data(data, num_data=None, active_learning=False):
         classes = 10
 
     elif data == "pets":
-        # oxford-IIIT Pets dataset
+        # oxford-IIIT Pets dataset for the U-Net (semantic segmentation)
         dataset, info = tfds.load('oxford_iiit_pet:3.*.*', with_info=True)
 
         def normalize(input_image, input_mask):
