@@ -17,5 +17,5 @@ plt.ylabel('Accuracy')
 plt.legend(loc="upper left")
 plt.subplots_adjust(left=0.15, right=0.95, bottom=0.15, top=0.95, wspace=0.3, hspace=0.35)
 
-plt.savefig("../plots/calibration_plot.png", dpi=300)
+plt.savefig("../Plots/calibration_plot.png", dpi=300)
 plt.show()

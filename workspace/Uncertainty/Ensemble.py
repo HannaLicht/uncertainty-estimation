@@ -7,9 +7,9 @@ from keras.preprocessing.image import ImageDataGenerator
 from functions import CNN, build_effnet
 from abc import abstractmethod
 import tensorflow_probability as tfp
-from uncertainty.MC_Dropout import SamplingBasedEstimator
+from Uncertainty.MC_Dropout import SamplingBasedEstimator
 
-ENSEMBLE_LOCATION = "../models/classification/ensembles"
+ENSEMBLE_LOCATION = "../Models/classification/ensembles"
 
 """
 Ensemble members of these ensembles have same model architecture but are trained on different data samples

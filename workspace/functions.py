@@ -86,7 +86,7 @@ def build_effnet(num_classes, img_size=300):
     return model
 
 
-def CNN_transfer_learning(classes=10, path_pretrained_model="../models/classification/CNN_cifar100"):
+def CNN_transfer_learning(classes=10, path_pretrained_model="../Models/classification/CNN_cifar100"):
     model_body = CNN(shape=(32, 32, 3), classes=100)
     model_body.load_weights(path_pretrained_model)
     out = model_body.layers[-2].output

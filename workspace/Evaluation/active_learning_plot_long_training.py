@@ -19,5 +19,5 @@ plt.legend(loc="lower right")
 plt.ylim(0.471, 0.74)
 
 plt.subplots_adjust(left=0.1, right=0.98, bottom=0.1, top=0.98, wspace=0.25, hspace=0.35)
-plt.savefig("../plots/long_training.pdf")
+plt.savefig("../Plots/long_training.pdf")
 plt.show()

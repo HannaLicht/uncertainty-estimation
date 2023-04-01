@@ -3,9 +3,9 @@
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import tqdm
-from uncertainty.calibration_classification import get_normalized_certainties
+from Uncertainty.calibration_classification import get_normalized_certainties
 
-from uncertainty.calibration_classification import reliability_diagram, uncertainty_diagram
+from Uncertainty.calibration_classification import reliability_diagram, uncertainty_diagram
 import re
 import tensorflow_probability as tfp
 tfd = tfp.distributions

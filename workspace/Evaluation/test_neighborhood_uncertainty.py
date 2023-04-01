@@ -2,10 +2,10 @@ import json
 import re
 import time
 from matplotlib import pyplot as plt
-from uncertainty.calibration_classification import expected_calibration_error
+from Uncertainty.calibration_classification import expected_calibration_error
 from functions import CNN, get_data, split_validation_from_train, build_effnet, CNN_transfer_learning
 import tensorflow as tf
-from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
+from Uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 
 runs = 4
 use_validation_data = False
@@ -20,7 +20,7 @@ num_data = None
 if re.match('CNN_cifar10_.*', model_name):
     num_data = int(model_name.replace('CNN_cifar10_', ""))
 
-model_path = "../models/classification/" + model_name
+model_path = "../Models/classification/" + model_name
 xtrain, ytrain, xval, yval, xtest, ytest, cl = get_data(data, num_data)
 
 model = tf.keras.models.load_model(model_path)
@@ -31,7 +31,7 @@ ypred = tf.argmax(model.predict(xtest), axis=-1).numpy()
 
 if use_validation_data:
     method = "NUC Va"
-    pre_path_certainty_model = "../models/classification/certainty_model/val/3/"
+    pre_path_certainty_model = "../Models/classification/certainty_model/val/3/"
     if model_name != "effnetb3":
         x_train, y_train = xval[:int(4*len(xval) / 5)], yval[:int(4*len(yval) / 5)]
         x_val, y_val = xval[int(4*len(xval) / 5):], yval[int(4*len(yval) / 5):]
@@ -40,7 +40,7 @@ if use_validation_data:
 else:
     x_train, y_train, x_val, y_val = xtrain, ytrain, xval, yval
     method = "NUC Tr"
-    pre_path_certainty_model = "../models/classification/certainty_model/train/3/"
+    pre_path_certainty_model = "../Models/classification/certainty_model/train/3/"
 
 path_certainty_model = pre_path_certainty_model + model_name + "/cp.ckpt"
 model.evaluate(xtest, ytest)
@@ -71,7 +71,7 @@ last_k = 99 if model_name == "CNN_cifar10_100" else 100
 
 for _ in range(runs):
     method = "NUC Va"
-    pre_path_certainty_model = "../models/classification/certainty_model/val/"
+    pre_path_certainty_model = "../Models/classification/certainty_model/val/"
     if model_name != "effnetb3":
         x_train, y_train = xval[:int(4 * len(xval) / 5)], yval[:int(4 * len(yval) / 5)]
         x_val, y_val = xval[int(4 * len(xval) / 5):], yval[int(4 * len(yval) / 5):]
@@ -81,7 +81,7 @@ for _ in range(runs):
     for valid in [True, False]:
         if model_name == "CNN_cifar10_100" and valid:
             method = "NUC Tr"
-            pre_path_certainty_model = "../models/classification/certainty_model/train/"
+            pre_path_certainty_model = "../Models/classification/certainty_model/train/"
             x_train, y_train, x_val, y_val = xtrain, ytrain, xval, yval
             continue
 
@@ -134,6 +134,6 @@ for _ in range(runs):
                     json.dump(data, json_file, indent=4)
 
         method = "NUC Tr"
-        pre_path_certainty_model = "../models/classification/certainty_model/train/"
+        pre_path_certainty_model = "../Models/classification/certainty_model/train/"
         x_train, y_train, x_val, y_val = xtrain, ytrain, xval, yval
 

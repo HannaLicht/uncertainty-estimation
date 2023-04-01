@@ -61,5 +61,5 @@ for count, (file, title, start, num) in enumerate(zip(file_names, titles, startd
     plt.legend(loc="lower right")
 
 plt.subplots_adjust(left=0.07, right=0.98, bottom=0.06, top=0.95, wspace=0.25, hspace=0.3)
-plt.savefig("../plots/active_learning_hybrid.pdf")
+plt.savefig("../Plots/active_learning_hybrid.pdf")
 plt.show()

@@ -55,7 +55,7 @@ def plot_roc_and_pr_curves(results_metrics, vari, labels):
 
     plt.legend(bbox_to_anchor=(1.4, 1.0))
     plt.subplots_adjust(left=0.06, right=0.85, bottom=0.15, top=0.91, wspace=0.2, hspace=0.35)
-    plt.savefig("../plots/roc_and_pr_curve_" + model_name + ".pdf")
+    plt.savefig("../Plots/roc_and_pr_curve_" + model_name + ".pdf")
     plt.show()
 
 
@@ -117,7 +117,7 @@ def plot_metric(results_metrics, vari, labels, index_metric, indices_best, y_min
     plt.legend(loc=loc)
 
     plt.subplots_adjust(left=0.07, right=0.98, bottom=0.15, top=0.9, wspace=0.3, hspace=0.35)
-    plt.savefig("../plots/" + name + "_" + model_name + ".pdf")
+    plt.savefig("../Plots/" + name + "_" + model_name + ".pdf")
     plt.show()
 
 

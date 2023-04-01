@@ -6,10 +6,10 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 from functions import build_effnet, CNN, split_validation_from_train, get_data, COLORS, CNN_transfer_learning
-from uncertainty.MC_Dropout import MCDropoutEstimator
-from uncertainty.Ensemble import BaggingEns, DataAugmentationEns, RandomInitShuffleEns, ENSEMBLE_LOCATION
-from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
-from uncertainty.calibration_classification import reliability_diagram, expected_calibration_error, get_normalized_certainties
+from Uncertainty.MC_Dropout import MCDropoutEstimator
+from Uncertainty.Ensemble import BaggingEns, DataAugmentationEns, RandomInitShuffleEns, ENSEMBLE_LOCATION
+from Uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
+from Uncertainty.calibration_classification import reliability_diagram, expected_calibration_error, get_normalized_certainties
 
 model_name = "CNN_cifar10_1000"
 data = "cifar10"
@@ -28,7 +28,7 @@ elif model_name == "CNN_cifar100":
 else:
     build_model_function = CNN_transfer_learning
 
-model = tf.keras.models.load_model("../models/classification/" + model_name)
+model = tf.keras.models.load_model("../Models/classification/" + model_name)
 
 _, acc = model.evaluate(xtest, ytest, verbose=2)
 print("Test accuracy: {:5.2f}%".format(100 * acc))
@@ -50,11 +50,11 @@ else:
 
 if model_name != "CNN_cifar10_100":
     nuc = NeighborhoodUncertaintyClassifier(model, xtrain_nuc, ytrain_nuc, xval_nuc, yval_nuc, xtest,
-                                        "../models/classification/certainty_model/val/10/" + model_name + "/cp.ckpt",
+                                        "../Models/classification/certainty_model/val/10/" + model_name + "/cp.ckpt",
                                             k=10)
 
 nuc_train = NeighborhoodUncertaintyClassifier(model, xtrain, ytrain, xval, yval, xtest,
-                                        "../models/classification/certainty_model/train/10/" + model_name + "/cp.ckpt",
+                                        "../Models/classification/certainty_model/train/10/" + model_name + "/cp.ckpt",
                                               k=10)
 
 soft_ent_uncert_test = tfd.Categorical(probs=model.predict(xtest, verbose=0)).entropy().numpy()
@@ -119,5 +119,5 @@ ax = plt.subplot(2, 3, 5)
 ax.set_position([0.56, 0.08, 0.25, 0.365])
 ax = plt.subplot(2, 3, 4)
 ax.set_position([0.23, 0.08, 0.25, 0.365])
-plt.savefig("../plots/calibration_" + model_name + ".pdf")
+plt.savefig("../Plots/calibration_" + model_name + ".pdf")
 plt.show()

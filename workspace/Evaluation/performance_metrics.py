@@ -3,11 +3,11 @@ import re
 import time
 import numpy as np
 import tensorflow as tf
-from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
-from uncertainty.calibration_classification import get_normalized_certainties, expected_calibration_error
+from Uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
+from Uncertainty.calibration_classification import get_normalized_certainties, expected_calibration_error
 from functions import CNN, get_data, build_effnet, split_validation_from_train, CNN_transfer_learning
-from uncertainty.MC_Dropout import MCDropoutEstimator
-from uncertainty.Ensemble import BaggingEns, DataAugmentationEns, RandomInitShuffleEns, ENSEMBLE_LOCATION
+from Uncertainty.MC_Dropout import MCDropoutEstimator
+from Uncertainty.Ensemble import BaggingEns, DataAugmentationEns, RandomInitShuffleEns, ENSEMBLE_LOCATION
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
@@ -25,7 +25,7 @@ RUNS = 1
 path_to_bagging_ens = ENSEMBLE_LOCATION + "/bagging/eff" if MODEL_NAME == "effnetb3" else ""
 path_to_dataAug_ens = ENSEMBLE_LOCATION + "/data_augmentation/eff" if MODEL_NAME == "effnetb3" else ""
 
-model_path = "../models/classification/" + MODEL_NAME
+model_path = "../Models/classification/" + MODEL_NAME
 k_val, k_tr = 3, 3          # = number of used nearest neighbors for Neighborhood Uncertainty Classifier
 
 

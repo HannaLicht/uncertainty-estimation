@@ -2,7 +2,7 @@ from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 import tqdm
 from matplotlib import pyplot as plt
 import tensorflow as tf
-from uncertainty.calibration_classification import reliability_diagram
+from Uncertainty.calibration_classification import reliability_diagram
 
 
 # batches have to include the same number of samples -> evenly divide dataset

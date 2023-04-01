@@ -2,9 +2,9 @@ import json
 import matplotlib.pyplot as plt
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from functions import get_data, split_validation_from_train, build_effnet, CNN_transfer_learning, CNN
-from uncertainty.Ensemble import DataAugmentationEns, RandomInitShuffleEns, BaggingEns, ENSEMBLE_LOCATION
-from uncertainty.MC_Dropout import MCDropoutEstimator
-from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
+from Uncertainty.Ensemble import DataAugmentationEns, RandomInitShuffleEns, BaggingEns, ENSEMBLE_LOCATION
+from Uncertainty.MC_Dropout import MCDropoutEstimator
+from Uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 import tensorflow as tf
 import tensorflow_probability as tfp
 tfd = tfp.distributions
@@ -29,8 +29,8 @@ else:
     model_name = "CNN_cifar" + str(num_used_classes)
     shape = (-1, 32, 32, 3)
 
-model_path = "../models/classification/" + model_name if model_name != "effnetb3" else \
-    "../models/classification/effnetb3_ood"
+model_path = "../Models/classification/" + model_name if model_name != "effnetb3" else \
+    "../Models/classification/effnetb3_ood"
 
 
 def split_up_some_classes(x, y):

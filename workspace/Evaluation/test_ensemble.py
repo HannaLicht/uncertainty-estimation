@@ -1,7 +1,7 @@
 import json
 import re
 import time
-from uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentationEns, RandomInitShuffleEns
+from Uncertainty.Ensemble import ENSEMBLE_LOCATION, BaggingEns, DataAugmentationEns, RandomInitShuffleEns
 from functions import get_data, build_effnet, CNN, CNN_transfer_learning
 import tensorflow as tf
 

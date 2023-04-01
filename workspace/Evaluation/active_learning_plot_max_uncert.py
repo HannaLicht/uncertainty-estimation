@@ -103,7 +103,7 @@ decore_plot(ax)
 
 plt.subplots_adjust(left=0.06, right=0.98, bottom=0.15, top=0.95, wspace=0.25, hspace=0.35)
 end = "_smallU" if smaller_u else ""
-plt.savefig("../plots/active_learning_" + str(startdata) + "_" + str(num_images) + end + ".pdf")
+plt.savefig("../Plots/active_learning_" + str(startdata) + "_" + str(num_images) + end + ".pdf")
 
 plt.show()
 
@@ -166,5 +166,5 @@ if startdata == 1000 and num_images == 1000:
         plot_accs(values, var, l)
     decore_plot(ax)
     plt.subplots_adjust(left=0.06, right=0.98, bottom=0.15, top=0.93, wspace=0.25, hspace=0.35)
-    plt.savefig("../plots/best_active_learning.pdf")
+    plt.savefig("../Plots/best_active_learning.pdf")
     plt.show()

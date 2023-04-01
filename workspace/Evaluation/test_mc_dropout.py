@@ -2,12 +2,12 @@ import json
 import re
 import time
 from functions import CNN, get_data, build_effnet, CNN_transfer_learning
-from uncertainty.MC_Dropout import MCDropoutEstimator
+from Uncertainty.MC_Dropout import MCDropoutEstimator
 import tensorflow as tf
 
 T = 50
 model_name = "CNN_cifar10_100"
-model_path = "../models/classification/" + model_name
+model_path = "../Models/classification/" + model_name
 get_times = False
 
 

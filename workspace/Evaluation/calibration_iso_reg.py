@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-from uncertainty.MC_Dropout import MCDropoutEstimator
-from uncertainty.Ensemble import BaggingEns, DataAugmentationEns, ENSEMBLE_LOCATION
-from uncertainty.calibration_classification import reliability_diagram, uncertainty_diagram, expected_calibration_error, \
+from Uncertainty.MC_Dropout import MCDropoutEstimator
+from Uncertainty.Ensemble import BaggingEns, DataAugmentationEns, ENSEMBLE_LOCATION
+from Uncertainty.calibration_classification import reliability_diagram, uncertainty_diagram, expected_calibration_error, \
     plot_regression
 from functions import get_data, CNN, COLORS, CNN_transfer_learning
 
@@ -19,7 +19,7 @@ for count, (model_name, title) in enumerate(zip(["CNN_cifar10_1000", "CNN_cifar1
 
     xtrain, ytrain, xval, yval, xtest, ytest, cl = get_data("cifar10" if count != 2 else "cifar100",
                                                             num_data=1000 if count == 0 else None)
-    model = tf.keras.models.load_model("../models/classification/" + model_name)
+    model = tf.keras.models.load_model("../Models/classification/" + model_name)
     ax = plt.subplot(1, 3, count + 1)
     ax.set_axisbelow(True)
     plt.grid(visible=True, color="gainsboro", linestyle='dashed', zorder=0)
@@ -123,12 +123,12 @@ for count, (model_name, title) in enumerate(zip(["CNN_cifar10_1000", "CNN_cifar1
 
 if isontonic_reg:
     plt.legend(loc='center left', bbox_to_anchor=(1.02, 0.5))
-    plot_name = '../plots/calibration_' + method + "_" + metric + "_isotonic_regression.png"
+    plot_name = '../Plots/calibration_' + method + "_" + metric + "_isotonic_regression.png"
     plt.subplots_adjust(left=0.05, right=0.81, bottom=0.16, top=0.9, wspace=0.27, hspace=0.35)
 else:
     plt.legend(loc="lower right")
     plt.subplots_adjust(left=0.06, right=0.96, bottom=0.16, top=0.9, wspace=0.3, hspace=0.35)
-    plot_name = '../plots/calibration_' + method + ".png"
+    plot_name = '../Plots/calibration_' + method + ".png"
 
 plt.savefig(plot_name, dpi=300)
 plt.show()

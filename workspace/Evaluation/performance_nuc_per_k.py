@@ -120,7 +120,7 @@ def plot_times(method):
 
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.subplots_adjust(left=0.08, right=0.72, bottom=0.16, top=0.91, wspace=0.25, hspace=0.35)
-    plt.savefig('../plots/times_' + method + '_different_k.pdf')
+    plt.savefig('../Plots/times_' + method + '_different_k.pdf')
     plt.show()
 
 
@@ -170,7 +170,7 @@ ax.set_axisbelow(True)
 
 plt.subplots_adjust(left=0.07, right=0.72, bottom=0.16, top=0.96, wspace=0.25, hspace=0.35)
 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-plot_name = '../plots/AUCs_nuc_different_k_valid.pdf'
+plot_name = '../Plots/AUCs_nuc_different_k_valid.pdf'
 plt.savefig(plot_name)
 plt.show()
 
@@ -186,7 +186,7 @@ ax.set_axisbelow(True)
 
 plt.subplots_adjust(left=0.07, right=0.72, bottom=0.16, top=0.96, wspace=0.25, hspace=0.35)
 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-plot_name = '../plots/AUCs_nuc_different_k_train.pdf'
+plot_name = '../Plots/AUCs_nuc_different_k_train.pdf'
 plt.savefig(plot_name)
 plt.show()
 

@@ -5,9 +5,9 @@ import tqdm
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from functions import get_data, CNN_transfer_learning, CNN
-from uncertainty.MC_Dropout import MCDropoutEstimator
-from uncertainty.Ensemble import BaggingEns, DataAugmentationEns, RandomInitShuffleEns
-from uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
+from Uncertainty.MC_Dropout import MCDropoutEstimator
+from Uncertainty.Ensemble import BaggingEns, DataAugmentationEns, RandomInitShuffleEns
+from Uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
@@ -23,7 +23,7 @@ startdata = 1000        # size of initial train data set
 num_images = 1000       # batch size
 runs = 5
 
-PATH_TO_PRETRAINED_CNN_10 = "../models/classification/CNN_cifar10_" + str(startdata)
+PATH_TO_PRETRAINED_CNN_10 = "../Models/classification/CNN_cifar10_" + str(startdata)
 times_images_added = 10
 xtrain, ytrain, xval, yval, xtest, ytest, _, xleft, yleft = get_data("cifar10", startdata, active_learning=True)
 file_name = "../Results/active_learning/"
