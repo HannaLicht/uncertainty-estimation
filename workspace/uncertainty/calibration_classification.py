@@ -7,17 +7,16 @@ import matplotlib.pyplot as plt
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
+"""
+notation of the functions:
+y_true - correct label (index of correct class, not one-hot)
+y_pred - index of predicted class
+outputs - softmax output
+"""
+
 
 # Expected Calibration Error (ECE)
 def expected_calibration_error(y_true, y_pred, certainties, num_bins=15, two_returns=False):
-    """
-    :param y_true: indexs of correct labels (not one-hot vectors)
-    :param y_pred:
-    :param uncertainties:
-    :param num_bins:
-    :param two_returns:
-    :return:
-    """
     correct = tf.cast((y_pred == y_true), dtype=tf.float32)
     b = np.linspace(start=0, stop=1.0, num=num_bins)
     bins = np.digitize(certainties, bins=b, right=True)
@@ -41,27 +40,8 @@ def expected_calibration_error(y_true, y_pred, certainties, num_bins=15, two_ret
         return o / len(y_true)
 
 
-def static_calibration_error(y_true, y_pred, num_bins=15):
-    classes = y_pred.shape[-1]
-
-    o = 0
-    for cur_class in range(classes):
-        correct = (cur_class == y_true).astype(np.float32)
-        prob_y = y_pred[..., cur_class]
-
-        b = np.linspace(start=0, stop=1.0, num=num_bins)
-        bins = np.digitize(prob_y, bins=b, right=True)
-
-        for b in range(num_bins):
-            mask = bins == b
-            if np.any(mask):
-                o += np.abs(np.sum(correct[mask] - prob_y[mask]))
-
-    return o / (y_pred.shape[0] * classes)
-
-
-def get_normalized_certainties(pred_val, y_val, uncertainties_val, uncertainties_test, num_bins=10):
-    y_pred = tf.argmax(pred_val, axis=-1)
+def get_normalized_certainties(output, y_val, uncertainties_val, uncertainties_test, num_bins=10):
+    y_pred = tf.argmax(output, axis=-1)
     correct = (y_pred == tf.argmax(y_val, axis=-1))
     x = uncertainties_val
     y = [1. if c else 0. for c in correct]
@@ -70,21 +50,20 @@ def get_normalized_certainties(pred_val, y_val, uncertainties_val, uncertainties
     return tf.cast(normalized_certainties, tf.float32)
 
 
-def reliability_diagram(y_true, output, certainties=None, num_bins=15, method=None, label_perfectly_calibrated=True,
+def reliability_diagram(y_true, outputs, certainties=None, num_bins=15, method=None, label_perfectly_calibrated=True,
                         color=None):
-    x, y = expected_calibration_error(y_true, tf.argmax(output, axis=-1), certainties=certainties, num_bins=num_bins,
+    x, y = expected_calibration_error(y_true, tf.argmax(outputs, axis=-1), certainties=certainties, num_bins=num_bins,
                                       two_returns=True)
     plt.plot(x, y, "s-", label=method, color=color)
     plt.plot([0, 1], [0, 1], "k:", label="Perfekt kalibriert" if label_perfectly_calibrated else None)
     plt.xlabel("Certainty")
     plt.ylabel("Accuracy")
     if method is not None or label_perfectly_calibrated:
-        plt.legend(bbox_to_anchor=(0.5, 0.4))
-    #plt.title("Calibration Plot")
+        plt.legend(loc="lower right")
 
 
-def uncertainty_diagram(y_true, y_pred, uncertainties, title="", label=None, color=None):
-    y_pred = np.argmax(y_pred, axis=-1).astype(np.float32)
+def uncertainty_diagram(y_true, outputs, uncertainties, title="", label=None, color=None):
+    y_pred = np.argmax(outputs, axis=-1).astype(np.float32)
     correct = (y_pred == y_true)
 
     b = np.linspace(start=tf.reduce_min(uncertainties), stop=tf.reduce_max(uncertainties), num=8)
@@ -106,8 +85,8 @@ def uncertainty_diagram(y_true, y_pred, uncertainties, title="", label=None, col
         plt.legend(bbox_to_anchor=(0.5, 1))
 
 
-def plot_regression(y_true, y_pred, uncertainties, title="", label=False, text="", style="-", utest=None):
-    y_pred = np.argmax(y_pred, axis=-1).astype(np.float32)
+def plot_regression(y_true, outputs, uncertainties, title="", label=False, text="", style="-", utest=None):
+    y_pred = np.argmax(outputs, axis=-1).astype(np.float32)
     correct = (y_pred == y_true)
 
     plt.title(title)

@@ -6,11 +6,11 @@ def make_latex_table(metric, mean=True):
     with open('../Results/auroc_aupr.json') as json_file:
         data = json.load(json_file)
 
-    headers = data["MCdrop SE"].keys()
-    titles = ["NUC Tr", "NUC Va", "Soft SE", "MCD SE", "MCD MI", "Bag SE", "Bag MI", "ZIS SE", "ZIS MI", "DA SE", "DA MI"]
+    headers = data["MCdrop PE"].keys()
+    titles = ["NUC Tr", "NUC Va", "SE", "MCD PE", "MCD MI", "Bag PE", "Bag MI", "DA PE", "DA MI"]
     function = tf.reduce_mean if mean else tf.math.reduce_std
 
-    textabular = f"l|{'r' * len(headers)}"
+    textabular = f"l|{'c' * len(headers)}"
     texheader = " & " + " & ".join(headers) + "\\\\"
     texdata = "\\ \midrule \n"
 
@@ -20,7 +20,6 @@ def make_latex_table(metric, mean=True):
         if count == 3 or count == 5:
             texdata += "\midrule \n"
         values = [round(function(data[method][m][metric], axis=-1).numpy(), 3) for m in headers]
-        #out = [str(val) + " $\pm$ " + str(std) for val, std in zip(values, stddevs)]
         texdata += f"{title} & {' & '.join(map(str,values))} \\\\\n"
 
     texdata += "\midrule \n"
@@ -47,10 +46,10 @@ def ood_table(mean=True):
 
     headers = ["cifar10", "cifar100", "cars196"]
     subheaders = ["auroc", "aupr", "auroc", "aupr", "auroc", "aupr"]
-    titles = ["MCD SE", "MCD MI", "Bag SE", "Bag MI", "DA SE", "DA MI", "NUC Tr", "NUC Va", "Soft SE", "Max Soft"]
+    titles = ["MCD PE", "MCD MI", "Bag PE", "Bag MI", "DA PE", "DA MI", "NUC Tr", "NUC Va", "SE", "Max Soft"]
     function = tf.reduce_mean if mean else tf.math.reduce_std
 
-    textabular = f"l|{'r' * len(headers)}"
+    textabular = f"l|{'c' * len(headers)*2}"
     texheader = " & " + " & ".join(headers) + "\\\\"
     texsubheader = " & " + " & ".join(subheaders) + "\\\\"
     texdata = "\\ \midrule \n"
@@ -63,7 +62,7 @@ def ood_table(mean=True):
                 values.append(round(function(data[dataset][title]["auroc"], axis=-1).numpy(), 3))
                 values.append(round(function(data[dataset][title]["aupr"], axis=-1).numpy(), 3))
             # out = [str(val) + " $\pm$ " + str(std) for val, std in zip(values, stddevs)]
-            texdata += f"{title} & {' & '.join(map(str, values))} \\\\\n"
+            texdata += f"{title} & {' & '.join(map(str, values))} \\\\ \n"
 
     print("\\begin{tabular}{" + textabular + "}")
     print(texheader)
@@ -87,8 +86,11 @@ print("\n\n\n")
 
 print("---------------------------------------AUROC-AUPR-OOD------------------------------------------")
 ood_table(True)
-print("\n\n\n")
+print("\n\n")
 
+print("---------------------------------------AUROC-AUPR-OOD_STDDEV------------------------------------------")
+ood_table(False)
+print("\n\n\n")
 
 keys = ["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_cifar10_10000", "CNN_cifar10", "CNN_cifar100", "effnetb3"]
 
@@ -97,15 +99,21 @@ def nuc_runtimes(nuc):
     output = "Tr."
     for key in keys:
         output += " & "
-        output += str(round(
-            tf.reduce_mean(t[key][nuc]["preparation & uncertainty"]).numpy() -
-            tf.reduce_mean(t[key][nuc]["uncertainty"]).numpy(), 1))
+        try:
+            output += str(round(
+                tf.reduce_mean(t[key][nuc]["preparation & uncertainty"][0]).numpy() -
+                tf.reduce_mean(t[key][nuc]["uncertainty"][0]).numpy(), 1))
+        except:
+            output += "-"
     output += " \\\\"
     print(output)
     output = "CEs"
     for key in keys:
-        output += " & "
-        output += str(round(tf.reduce_mean(t[key][nuc]["uncertainty"]).numpy(), 1))
+        try:
+            output += " & "
+            output += str(round(tf.reduce_mean(t[key][nuc]["uncertainty"][0]).numpy(), 1))
+        except:
+            output += "-"
     output += " \\\\"
     print(output)
 
@@ -114,9 +122,11 @@ def ensemble_runtimes(ens):
     output = "Tr."
     for key in keys:
         output += " & "
-        times = tf.reduce_mean(t[key][ens]["preparation & uncertainty"]) - tf.reduce_mean(t[key][ens]["uncertainty"]) +\
-                tf.reduce_mean(t[key][ens]["preparation & calibration"]) - tf.reduce_mean(t[key][ens]["with calibration"])
-        output += str(round(times.numpy()*0.5, 1))
+        if key == "effnetb3":
+            times = tf.reduce_mean(t[key][ens]["preparation & uncertainty"]) - tf.reduce_mean(t[key][ens]["uncertainty"])
+        else:
+            times = tf.reduce_mean(t[key][ens]["preparation & calibration"]) - tf.reduce_mean(t[key][ens]["with calibration"])
+        output += str(round(times.numpy(), 1))
     output += " \\\\"
     print(output)
     output = "CEs"
@@ -128,7 +138,7 @@ def ensemble_runtimes(ens):
     output = "kal."
     for key in keys:
         output += " & "
-        output += str(round(tf.reduce_mean(t[key][ens]["with calibration"]).numpy(), 1))
+        output += str(round(tf.reduce_mean(t[key][ens]["with calibration"]).numpy() - tf.reduce_mean(t[key][ens]["uncertainty"]).numpy(), 1))
     output += " \\\\"
     print(output)
 
@@ -141,13 +151,13 @@ print("& \multicolumn{6}{c}{SOFTMAX SE} \\\\ \midrule")
 output = "unk."
 for key in keys:
     output += " & "
-    output += str(round(tf.reduce_mean(t[key]["Softmax SE"]["uncertainty"]).numpy(), 3))
+    output += str(round(tf.reduce_mean(t[key]["SE"]["uncertainty"]).numpy(), 3))
 output += " \\\\"
 print(output)
 output = "kal."
 for key in keys:
     output += " & "
-    output += str(round(tf.reduce_mean(t[key]["Softmax SE"]["calibration"]).numpy(), 3))
+    output += str(round(tf.reduce_mean(t[key]["SE"]["calibration"]).numpy() - tf.reduce_mean(t[key]["SE"]["uncertainty"]).numpy(), 3))
 output += " \\\\"
 print(output)
 
@@ -161,7 +171,7 @@ print(output)
 output = "kal."
 for key in keys:
     output += " & "
-    output += str(round(tf.reduce_mean(t[key]["MC Dropout"]["with calibration"]).numpy(), 1))
+    output += str(round(tf.reduce_mean(t[key]["MC Dropout"]["with calibration"]).numpy() - tf.reduce_mean(t[key]["MC Dropout"]["uncertainty"]).numpy(), 1))
 output += " \\\\"
 print(output)
 
@@ -170,10 +180,7 @@ print("& \multicolumn{6}{c}{Bagging} \\\\")
 print("\ arrayrulecolor{gray} \midrule")
 ensemble_runtimes("Bagging")
 
-print("\midrule & \multicolumn{6}{c}{\textit{Zufällige Initialisierung und Shuffling der Daten}} \\\\ \midrule")
-ensemble_runtimes("ZIS")
-
-print("\midrule & \multicolumn{6}{c}{\textit{Data Augmentation}} \\\\ \midrule")
+print("\midrule & \multicolumn{6}{c}{Data Augmentation} \\\\ \midrule")
 ensemble_runtimes("Data Augmentation")
 
 print("\ arrayrulecolor{black} \midrule")
@@ -215,14 +222,14 @@ with open('../Results/eces.json') as json_file:
 
 print("& CNN c$10_{100}$ & CNN c$10_{1000}$ & CNN c$10_{10000}$ & CNN c10 & CNN c100 & EffNet \\\\")
 print("\midrule")
-ece_row("Soft SE", tf.reduce_mean)
+ece_row("SE", tf.reduce_mean)
 print("\midrule")
-ece_row("MCD SE", tf.reduce_mean)
+ece_row("MCD PE", tf.reduce_mean)
 ece_row("MCD MI", tf.reduce_mean)
 print("\midrule")
-ece_row("Bag SE", tf.reduce_mean)
+ece_row("Bag PE", tf.reduce_mean)
 ece_row("Bag MI", tf.reduce_mean)
-ece_row("DA SE", tf.reduce_mean)
+ece_row("DA PE", tf.reduce_mean)
 ece_row("DA MI", tf.reduce_mean)
 print("\midrule")
 ece_row_nuc("NUC Tr", tf.reduce_mean)
@@ -234,14 +241,14 @@ print("\n\n")
 
 print("& CNN c$10_{100}$ & CNN c$10_{1000}$ & CNN c$10_{10000}$ & CNN c10 & CNN c100 & EffNet \\")
 print("\midrule")
-ece_row("Soft SE", tf.math.reduce_std)
+ece_row("SE", tf.math.reduce_std)
 print("\midrule")
-ece_row("MCD SE", tf.math.reduce_std)
+ece_row("MCD PE", tf.math.reduce_std)
 ece_row("MCD MI", tf.math.reduce_std)
 print("\midrule")
-ece_row("Bag SE", tf.math.reduce_std)
+ece_row("Bag PE", tf.math.reduce_std)
 ece_row("Bag MI", tf.math.reduce_std)
-ece_row("DA SE", tf.math.reduce_std)
+ece_row("DA PE", tf.math.reduce_std)
 ece_row("DA MI", tf.math.reduce_std)
 print("\midrule")
 ece_row_nuc("NUC Tr", tf.math.reduce_std)

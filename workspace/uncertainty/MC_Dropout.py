@@ -83,7 +83,7 @@ class SamplingBasedEstimator:
             scores.append(score.numpy())
         return scores
 
-    # only works for classification tasks & labels must be known
+    # labels must be known
     def plot_diagrams(self, test_lbls):
         assert self.xval is not None
 
@@ -154,7 +154,9 @@ class SamplingBasedEstimator:
         plt.show()
 
 
+# produces a copy of the model but the dropout units are activated at test time
 def make_MC_dropout(model, layer_regex):
+
     # Auxiliary dictionary to describe the network graph
     network_dict = {'input_layers_of': {}, 'new_output_tensor_of': {}}
 
@@ -184,7 +186,6 @@ def make_MC_dropout(model, layer_regex):
         if re.match(layer_regex, layer.name):
             # training=True important to enable active dropout when predicting -> MC Monte Carlo
             x = layer(layer_input, training=True)
-            # print('New layer: {} Old layer: {} Type: {}'.format(new_layer.name, layer.name, position))
         else:
             x = layer(layer_input)
 
@@ -219,7 +220,7 @@ class MCDropoutEstimator(SamplingBasedEstimator):
 
         try:
             # batch X to reduce RAM usage
-            num_splits = len(self.X)/40 if num_classes > 50 else 10
+            num_splits = len(self.X)/40 if len(X[0]) > 32 else 10
             X = tf.split(X, num_or_size_splits=43 if num_classes == 196 else int(num_splits))
         except:
             X = tf.expand_dims(X, axis=0)
@@ -247,56 +248,3 @@ class MCDropoutEstimator(SamplingBasedEstimator):
                 self.val_predictions.append(preds)
 
             self.val_p_ens = tf.math.reduce_mean(self.val_predictions, axis=0)
-
-
-'''
-class SamplingBasedEstimatorImageSegmentation(SamplingBasedEstimator):
-
-    def uncertainties_shannon_entropy(self):
-        mi_per_pixel = tfd.Categorical(probs=self.p_ens).entropy()
-        mi_per_image = tf.reduce_mean(mi_per_pixel, axis=-1)
-        return mi_per_image.numpy()
-
-    def uncertainties_mutual_information(self):
-        h = tfd.Categorical(probs=self.p_ens).entropy()
-        mi = 0
-        for prediction in self.predictions:
-            mi = mi - tfd.Categorical(probs=prediction).entropy()
-        mi = mi / len(self.predictions) + h
-        mean_mi = tf.reduce_mean(mi, axis=-1)
-        return mean_mi
-
-
-class MCDropoutEstimatorImageSegmentation(SamplingBasedEstimatorImageSegmentation):
-
-    def __init__(self, model, X, num_classes=3, T=50):
-        """
-        :param X: data for which the uncertainty should be estimated
-        :param T: number of runs with activated dropout at inference time
-        """
-        self.T = T
-        self.estimator_name = "MC Dropout"
-        for layer in model.get_config().get("layers"):
-            print(layer)
-        self.model = make_MC_dropout(model, layer_regex=".*drop.*")
-
-        # check, if all dropout layers are MC dropout layers (training=True -> activated during inference)
-        for layer in self.model.get_config().get("layers"):
-            print(layer)
-
-        self.X, self.num_classes, self.predictions = X, num_classes, []
-        # batch to reduce RAM usage
-        X = [X[i:i + 1000] for i in range(0, len(X), 1000)]
-        for _ in tqdm.tqdm(range(self.T)):
-            preds = self.model(X[0])[-1]
-            for img_batch in X[1:]:
-                preds = tf.concat([preds, self.model(img_batch)[-1]], axis=0)
-            self.predictions.append(preds)
-        print(len(self.predictions))
-        self.p_ens = tf.math.reduce_mean(self.predictions, axis=0)
-        print(self.p_ens.shape)
-
-
-model = tf.keras.models.load_model("../models/semantic_segmentation/modified_UNet")
-MCDropoutEstimatorImageSegmentation(model, None)
-'''

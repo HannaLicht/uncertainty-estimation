@@ -3,19 +3,16 @@ import re
 
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from matplotlib import pyplot as plt
 from keras.preprocessing.image import ImageDataGenerator
-from functions import create_simple_model, CNN, build_effnet
+from functions import CNN, build_effnet
 from abc import abstractmethod
 import tensorflow_probability as tfp
-
-from models.semantic_segmentation.train_and_save_modified_UNet import unet_model
 from uncertainty.MC_Dropout import SamplingBasedEstimator
 
 ENSEMBLE_LOCATION = "../models/classification/ensembles"
 
 """
-Ensemble members have same model architecture but are trained on different data samples
+Ensemble members of these ensembles have same model architecture but are trained on different data samples
 """
 
 
@@ -30,10 +27,12 @@ class Ensemble(SamplingBasedEstimator):
         if val:
             assert X_val is not None and y_val is not None
             self.xval, self.yval = X_val, y_val
+
         try:
             self.members = [tf.keras.models.load_model(path_to_ensemble + "/member_" + str(i)) for i in
                             range(num_members)]
             self.predict()
+
         except:
             assert X_train is not None and y_train is not None and X_val is not None and y_val is not None \
                    and build_model_function is not None
@@ -46,12 +45,6 @@ class Ensemble(SamplingBasedEstimator):
         """create ensemble based on certain approaches"""
 
     def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_val, y_val, build_model_function, num_members):
-        if y_train[0].shape == (128, 128, 1):
-            X_train = tf.reshape(X_train, (-1, 128, 128, 3))
-            X_val = tf.reshape(X_val, (-1, 128, 128, 3))
-            y_train = tf.reshape(y_train, (-1, 128, 128, 1))
-            y_val = tf.reshape(y_val, (-1, 128, 128, 1))
-
         train_imgs, train_lbls = self.prepare_data(X_train, y_train, num_members)
         self.init_members(build_model_function, num_members)
 
@@ -180,51 +173,13 @@ class DataAugmentationEns(Ensemble):
         self.predict()
 
     def prepare_data(self, xtrain, ytrain, num_members):
-        if ytrain[0].shape == (128, 128, 1):        # semantic segmentation
 
-            def add_noise(img):
-                """Add random noise to an image"""
-                variability = 0.01
-                deviation = variability * random.random()
-                noise = tfp.distributions.Normal(tf.fill(img.shape, 0.), tf.fill(img.shape, deviation))
-                img += noise.sample()
-                tf.clip_by_value(img, 0., 255.)
-                return img
-
-            data_augmentation = ImageDataGenerator(preprocessing_function=add_noise)
-
-            '''
-            mask_datagen = ImageDataGenerator(**data_gen_args)
-
-            # Provide the same seed and keyword arguments to the fit and flow methods seed = 1
-            image_datagen.fit(xtrain, augment=True, seed=[42, 35, 2, 7, 8])
-            mask_datagen.fit(ytrain, augment=True, seed=[42, 35, 2, 7, 8])
-
-            image_iterator = image_datagen.flow(xtrain, batch_size=128 if len(ytrain) >= 1000 else 32, seed=1)
-            mask_iterator = mask_datagen.flow(ytrain, batch_size=128 if len(ytrain) >= 1000 else 32, seed=1)
-
-            plt.figure(figsize=(8, 16))
-            for i in range(4):
-                image_iterator = image_datagen.flow(xtrain, batch_size=128 if len(ytrain) >= 1000 else 32, seed=1)
-                mask_iterator = mask_datagen.flow(ytrain, batch_size=128 if len(ytrain) >= 1000 else 32, seed=1)
-                augmented_image = next(image_iterator)
-                augmented_mask = next(mask_iterator)
-                plt.subplot(4, 2, 2 * i + 1)
-                plt.imshow(augmented_image[0])
-                plt.subplot(4, 2, 2 * i + 2)
-                plt.imshow(augmented_mask[0])
-                plt.axis("off")
-            plt.show()
-
-            train_iterator = zip(image_iterator, mask_iterator)
-            return train_iterator
-            '''
-        else:
-            data_augmentation = ImageDataGenerator(rotation_range=1, width_shift_range=0.05, height_shift_range=0.05,
-                                                   zoom_range=.1, horizontal_flip=True, fill_mode='reflect')
+        data_augmentation = ImageDataGenerator(rotation_range=1, width_shift_range=0.05, height_shift_range=0.05,
+                                               zoom_range=.1, horizontal_flip=True, fill_mode='reflect')
         data_augmentation.fit(xtrain, augment=True)
         iterator = data_augmentation.flow(xtrain, ytrain, shuffle=True, batch_size=128 if len(ytrain) >= 1000 else 32)
 
+        # uncomment for a plot of different augmentations of an image
         '''plt.figure(figsize=(10, 10))
         for i in range(9):
             iter = data_augmentation.flow(xtrain, ytrain, shuffle=False, batch_size=128)
