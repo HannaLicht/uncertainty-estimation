@@ -1,6 +1,4 @@
 # https://keras.io/examples/vision/image_classification_efficientnet_fine_tuning/
-import sys
-sys.path.append("/home/urz/hlichten")
 from functions import get_data, build_effnet
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau

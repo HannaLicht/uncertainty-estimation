@@ -1,17 +1,15 @@
-# https://www.tensorflow.org/tutorials/keras/save_and_load
-
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from functions import CNN, get_data, CNN_transfer_learning
 
-DATASET = "cifar100"
-NUM_DATA = None
+dataset = "cifar10"
+num_data = 100
 shape = (32, 32, 3)
 
-train_images, train_labels, val_images, val_labels, test_images, test_labels, classes = get_data(DATASET, num_data=NUM_DATA)
-filepath = "CNN_" + DATASET + ("" if NUM_DATA is None else "_" + str(NUM_DATA))
+train_images, train_labels, val_images, val_labels, test_images, test_labels, classes = get_data(dataset, num_data=num_data)
+filepath = "CNN_" + dataset + ("" if num_data is None else "_" + str(num_data))
 
-if DATASET == "cifar10":
+if dataset == "cifar10":
     # transfer learning
     # first step: weights of main model frozen
     model = CNN_transfer_learning(path_pretrained_model="CNN_cifar100")
@@ -39,7 +37,7 @@ model.fit(train_images, train_labels, batch_size=32, shuffle=True, epochs=1000,
 model.save(filepath)
 
 # Create a basic model instance
-model = CNN_transfer_learning(path_pretrained_model="CNN_cifar100") if DATASET == "cifar10" \
+model = CNN_transfer_learning(path_pretrained_model="CNN_cifar100") if dataset == "cifar10" \
     else CNN(shape=shape, classes=classes)
 
 # Evaluate the model
