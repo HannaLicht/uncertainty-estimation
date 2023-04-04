@@ -7,7 +7,7 @@ from functions import CNN, get_data, split_validation_from_train, build_effnet, 
 import tensorflow as tf
 from Uncertainty.NeighborhoodUncertainty import NeighborhoodUncertaintyClassifier
 
-runs = 4
+runs = 0                 # if > 0, the evaluation based on different numbers of nearest neighbors (k) starts
 use_validation_data = False
 use_stored = False       # if you want to use a stored certainty network
 

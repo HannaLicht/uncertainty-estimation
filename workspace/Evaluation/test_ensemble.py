@@ -7,7 +7,7 @@ import tensorflow as tf
 
 model_name = "CNN_cifar10_100"
 method = "bagging"
-get_times = True
+get_times = False
 
 path_to_ensemble = ENSEMBLE_LOCATION + "/" + method + "/" + model_name
 

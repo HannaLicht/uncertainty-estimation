@@ -23,6 +23,7 @@ class SamplingBasedEstimator:
     estimator_name = ""
 
     def get_simple_model_accuracy(self, lbls):
+        """ :return average accuracy of a feedforward run """
         accs = []
         m = tf.keras.metrics.CategoricalAccuracy()
         for y_p in self.predictions:
@@ -32,15 +33,17 @@ class SamplingBasedEstimator:
         return (sum(accs)/len(accs)).numpy()
 
     def get_ensemble_accuracy(self, lbls):
+        """ :return accuracy of whole ensemble of models/feedforward runs """
         mc_ensemble_pred = tf.argmax(self.p_ens, axis=-1)
         en_acc = tf.keras.metrics.Accuracy()
         en_acc.update_state(tf.argmax(lbls, axis=-1), mc_ensemble_pred)
         return en_acc.result().numpy()
 
     def get_ensemble_prediction(self):
+        """ :return the class number predicted by the ensemble """
         return tf.argmax(self.p_ens, axis=-1).numpy()
 
-    def uncertainties_shannon_entropy(self, val=False):
+    def uncertainties_shannon_entropy(self, val=False):     # = predictive entropy
         if val:
             return tfd.Categorical(probs=self.val_p_ens).entropy().numpy()
         return tfd.Categorical(probs=self.p_ens).entropy().numpy()
@@ -61,16 +64,20 @@ class SamplingBasedEstimator:
         return mi.numpy()
 
     def normalized_certainties_shannon_entropy(self):
+        """ :return calibrated certainty estimates between 0 and 1 from the predictive entropy """
         h_val = self.uncertainties_shannon_entropy(val=True)
         h_test = self.uncertainties_shannon_entropy()
         return get_normalized_certainties(self.val_p_ens, self.yval, h_val, h_test)
 
     def normalized_certainties_mutual_information(self):
+        """ :return calibrated certainty estimates between 0 and 1 from the mutual information """
         mi_val = self.uncertainties_mutual_information(val=True)
         mi_test = self.uncertainties_mutual_information()
         return get_normalized_certainties(self.val_p_ens, self.yval, mi_val, mi_test)
 
     def certainty_scores(self, lbls):
+        """ :returns the fraction of the average uncertainty estimate of incorrect and correct predictions for
+                     predictive entropy and mutual information """
         pred_y = tf.math.argmax(self.p_ens, axis=-1)
         correct = (pred_y == lbls)
 
@@ -83,8 +90,9 @@ class SamplingBasedEstimator:
             scores.append(score.numpy())
         return scores
 
-    # labels must be known
     def plot_diagrams(self, test_lbls):
+        """ plots some evaluation diagrams, for this labels must be known (not one hot encoded) and validation data
+            must be provided for the instance """
         assert self.xval is not None
 
         pred_y_test = tf.math.argmax(self.p_ens, axis=-1)
@@ -154,8 +162,8 @@ class SamplingBasedEstimator:
         plt.show()
 
 
-# produces a copy of the model but the dropout units are activated at test time
 def make_MC_dropout(model, layer_regex):
+    """ produces a copy of the model but the dropout units are activated at test time """
 
     # Auxiliary dictionary to describe the network graph
     network_dict = {'input_layers_of': {}, 'new_output_tensor_of': {}}
@@ -205,6 +213,7 @@ class MCDropoutEstimator(SamplingBasedEstimator):
         """
         :param X: data for which the uncertainty should be estimated
         :param T: number of runs with activated dropout at inference time
+        if you want to use isotonic regression, you should provide validation data (xval & yval)
         """
         assert (xval is None) == (yval is None)
 
@@ -237,6 +246,7 @@ class MCDropoutEstimator(SamplingBasedEstimator):
             self.xval, self.yval, self.val_predictions = xval, yval, []
 
             try:
+                # batch xval to reduce RAM usage
                 xval = tf.split(xval, num_or_size_splits=8 if num_classes == 196 else 10)
             except:
                 xval = tf.expand_dims(xval, axis=0)

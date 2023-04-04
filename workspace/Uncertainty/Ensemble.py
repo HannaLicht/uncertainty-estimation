@@ -11,9 +11,9 @@ from Uncertainty.MC_Dropout import SamplingBasedEstimator
 
 ENSEMBLE_LOCATION = "../Models/classification/ensembles"
 
-"""
+'''
 Ensemble members of these ensembles have same model architecture but are trained on different data samples
-"""
+'''
 
 
 class Ensemble(SamplingBasedEstimator):
@@ -45,6 +45,7 @@ class Ensemble(SamplingBasedEstimator):
         """create ensemble based on certain approaches"""
 
     def init_new_ensemble(self, path_to_ensemble, X_train, y_train, X_val, y_val, build_model_function, num_members):
+        """ prepare an ensemble for uncertainty estimation: train the members"""
         train_imgs, train_lbls = self.prepare_data(X_train, y_train, num_members)
         self.init_members(build_model_function, num_members)
 
@@ -60,6 +61,7 @@ class Ensemble(SamplingBasedEstimator):
                                                 restore_best_weights=True)
         rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
 
+        # train ensemble members
         if build_model_function != CNN:
             # transferlearning
             # first step
@@ -71,7 +73,6 @@ class Ensemble(SamplingBasedEstimator):
                 optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3 if build_model_function != build_effnet else 1e-4)
                 model.compile(optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"])
 
-        # train ensemble members
         for index, (model, imgs, lbls) in enumerate(zip(self.members, train_imgs, train_lbls)):
             model.fit(imgs, lbls, validation_data=(X_val, y_val), epochs=1000,
                       batch_size=128 if len(lbls) >= 1000 else 32, callbacks=[early_stop, rlrop])
@@ -154,6 +155,7 @@ class DataAugmentationEns(Ensemble):
                                                 restore_best_weights=True)
         rlrop = ReduceLROnPlateau(monitor='val_loss', mode='min', patience=5, factor=0.5, min_lr=1e-6, verbose=1)
 
+        # train ensemble members
         if build_model_function != CNN:
             # transferlearning
             # first step
@@ -164,7 +166,6 @@ class DataAugmentationEns(Ensemble):
                 optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3 if build_model_function != build_effnet else 1e-4)
                 model.compile(optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"])
 
-        # train ensemble members
         for index, model in enumerate(self.members):
             model.fit(data_generator, validation_data=(X_val, y_val), epochs=1000, callbacks=[early_stop, rlrop])
             if path_to_ensemble != "":
