@@ -48,7 +48,7 @@ def plot_eces():
     with open('../Results/eces.json') as json_file:
         eces = json.load(json_file)
 
-    colors = [adjust_lightness('b', 1.6), adjust_lightness('b', 1.3), adjust_lightness('b', 0.8),
+    colors = [adjust_lightness('b', 1.8), adjust_lightness('b', 1.6), adjust_lightness('b', 1.0),
               adjust_lightness('b', 0.4), 'tomato', 'yellowgreen']
     models = ["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_cifar10_10000", "CNN_cifar10", "CNN_cifar100", "effnetb3"]
     plt.figure(figsize=(9, 3))
@@ -74,7 +74,7 @@ def plot_eces():
 
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.subplots_adjust(left=0.07, right=0.72, bottom=0.16, top=0.91, wspace=0.25, hspace=0.35)
-    plt.savefig('../plots/ECEs_nuc_different_k.pdf')
+    plt.savefig('../Plots/ECEs_nuc_different_k.pdf')
     plt.show()
 
 
@@ -82,7 +82,7 @@ def plot_times(method):
     with open('../Results/times.json') as json_file:
         times = json.load(json_file)
 
-    colors = [adjust_lightness('b', 1.6), adjust_lightness('b', 1.3), adjust_lightness('b', 0.8),
+    colors = [adjust_lightness('b', 1.8), adjust_lightness('b', 1.6), adjust_lightness('b', 1),
               adjust_lightness('b', 0.4), 'tomato', 'yellowgreen']
     models = ["CNN_cifar10_100", "CNN_cifar10_1000", "CNN_cifar10_10000", "CNN_cifar10", "CNN_cifar100", "effnetb3"]
     plt.figure(figsize=(9, 3))
@@ -148,7 +148,7 @@ def plot_curves(auroc, valid):
         means.append(tf.reduce_mean(values, axis=-1))
         stdevs.append(tf.math.reduce_std(values, axis=-1))
 
-    colors = [adjust_lightness('b', 1.6), adjust_lightness('b', 1.3), adjust_lightness('b', 0.8),
+    colors = [adjust_lightness('b', 1.8), adjust_lightness('b', 1.6), adjust_lightness('b', 1.0),
               adjust_lightness('b', 0.4), 'tomato', 'yellowgreen']
 
     for mean, stdev, c, label in zip(means, stdevs, colors, lbls):
